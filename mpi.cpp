@@ -86,82 +86,58 @@ void init_simulation(particle_t* parts, int num_parts, double size, int rank, in
     }
 }
 
-int counter = 0;
-
-// void simulate_one_step(particle_t* parts, int num_parts, double size, int rank, int num_procs) {
-    
-//     // std::cout << "rank [" << rank << "] counter[" << counter << "]\n";
-//     // counter ++;
-//     MPI_Barrier(MPI_COMM_WORLD);
-//     // if (rank == 0)
-//     // {
-//     //     std::cout << "==================================\n";
-//     // }
-//     // ============================== SEND / RECEIVE GHOST PARTICLES ================================= //
-//     // Vectors to store particles that need to be sent and received
-//     std::vector<double> ghost_to_above;
-//     std::vector<double> ghost_to_below;
-//     std::vector<double> ghost_from_above;
-//     std::vector<double> ghost_from_below;
-
-//     // Define rank above and below
-//     int rank_above = (rank + 1 < num_procs) ? rank + 1 : -1;
-//     int rank_below = (rank - 1 >= 0) ? rank - 1 : -1;
-
-//     // Iterate over local particles to determine which need to be sent
-//     for (size_t i = 0; i < local_parts.size(); i++) {
-//         if (upper_bound - local_parts[i].y < cutoff) {
-//             ghost_to_above.push_back(local_parts[i].x);
-//             ghost_to_above.push_back(local_parts[i].y);
-//         }
-//         if (local_parts[i].y - lower_bound < cutoff) {
-//             ghost_to_below.push_back(local_parts[i].x);
-//             ghost_to_below.push_back(local_parts[i].y);
-//         }
-//     }
-
-//     // Send to rank above and receive from rank below
-//     if (rank_above != -1) {
-//         int ghost_to_above_size = ghost_to_above.size();
-//         int ghost_from_below_size = 0;
-//         MPI_Sendrecv(&ghost_to_above_size, 1, MPI_INT, rank_above, 0,
-//                      &ghost_from_below_size, 1, MPI_INT, rank_below, 0,
-//                      MPI_COMM_WORLD, MPI_STATUS_IGNORE);
-//         // std::cout << "[Rank " << rank << "] Sent " << ghost_to_above_size / 2 
-//         //           << " ghost particles to Rank " << rank_above 
-//         //           << " | Received " << ghost_from_below_size / 2 
-//         //           << " ghost particles from Rank " << rank_below << std::endl;
-//     }
-
-//     // Send to rank below and receive from rank above
-//     if (rank_below != -1) {
-//         int ghost_to_below_size = ghost_to_below.size();
-//         int ghost_from_above_size = 0;
-//         MPI_Sendrecv(&ghost_to_below_size, 1, MPI_INT, rank_below, 1,
-//                      &ghost_from_above_size, 1, MPI_INT, rank_above, 1,
-//                      MPI_COMM_WORLD, MPI_STATUS_IGNORE);
-//         // std::cout << "[Rank " << rank << "] Sent " << ghost_to_below_size / 2 
-//         //           << " ghost particles to Rank " << rank_below 
-//         //           << " | Received " << ghost_from_above_size / 2 
-//         //           << " ghost particles from Rank " << rank_above << std::endl;
-//     }
-
-//     MPI_Barrier(MPI_COMM_WORLD);
-
-//     // ============================== MOVE PARTICLES ================================= //
-
-//     for (int i = 0; i < local_parts.size(); ++i) {
-//         move(local_parts[i], local_parts.size());
-//     }
-
-//     MPI_Barrier(MPI_COMM_WORLD);
-// }
-
 void simulate_one_step(particle_t* parts, int num_parts, double size, int rank, int num_procs) {
-    std::cout << "Process " << rank << " reached before the barrier." << std::endl;
+    
+    // ============================== MOVE PARTICLES ================================= //
+    for (size_t i = 0; i < local_parts.size(); i++) {
+        move(local_parts[i], local_parts.size());
+    }
+
+    // ============================== SEND / RECEIVE GHOST PARTICLE COUNTS ================================= //
+    int ghost_to_above_count = 0;
+    int ghost_to_below_count = 0;
+    int ghost_from_above_count = 0;
+    int ghost_from_below_count = 0;
+
+    // Define rank above and below
+    int rank_above = (rank + 1 < num_procs) ? rank + 1 : -1;
+    int rank_below = (rank - 1 >= 0) ? rank - 1 : -1;
+
+    // Iterate over local particles to determine ghost particle counts
+    for (size_t i = 0; i < local_parts.size(); i++) {
+        if (upper_bound - local_parts[i].y < cutoff) {
+            ghost_to_above_count++;
+        }
+        if (local_parts[i].y - lower_bound < cutoff) {
+            ghost_to_below_count++;
+        }
+    }
+
+    // First: Receive from rank below, send to rank below
+    if (rank_below != -1) {
+        MPI_Sendrecv(&ghost_to_below_count, 1, MPI_INT, rank_below, 0,
+                     &ghost_from_below_count, 1, MPI_INT, rank_below, 0,
+                     MPI_COMM_WORLD, MPI_STATUS_IGNORE);
+        std::cout << "[Rank " << rank << "] Sent " << ghost_to_below_count
+                  << " ghost particles to Rank " << rank_below 
+                  << " | Received " << ghost_from_below_count 
+                  << " ghost particles from Rank " << rank_below << std::endl;
+    }
+
+    // Second: Send to rank above, receive from rank above
+    if (rank_above != -1) {
+        MPI_Sendrecv(&ghost_to_above_count, 1, MPI_INT, rank_above, 1,
+                     &ghost_from_above_count, 1, MPI_INT, rank_above, 1,
+                     MPI_COMM_WORLD, MPI_STATUS_IGNORE);
+        std::cout << "[Rank " << rank << "] Sent " << ghost_to_above_count
+                  << " ghost particles to Rank " << rank_above 
+                  << " | Received " << ghost_from_above_count 
+                  << " ghost particles from Rank " << rank_above << std::endl;
+    }
+
     MPI_Barrier(MPI_COMM_WORLD);
-    std::cout << "Process " << rank << " passed the barrier." << std::endl;
 }
+
 
 void gather_for_save(particle_t* parts, int num_parts, double size, int rank, int num_procs) {
     // Write this function such that at the end of it, the master (rank == 0)
