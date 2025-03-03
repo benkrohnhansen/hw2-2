@@ -4,6 +4,7 @@
 #include <cmath>
 #include <vector>
 #include <cstring>
+#include <algorithm>
 // Put any static global variables here that you will use throughout the simulation.
 
 // Apply force between two particles
@@ -85,98 +86,81 @@ void init_simulation(particle_t* parts, int num_parts, double size, int rank, in
     }
 }
 
-void simulate_one_step(particle_t* parts, int num_parts, double size, int rank, int num_procs) {
+int counter = 0;
+
+// void simulate_one_step(particle_t* parts, int num_parts, double size, int rank, int num_procs) {
     
-    // ============================== SEND / RECEIVE GHOST PARTICLES ================================= //
-    // Vectors to store particles that need to be sent and received
-    std::vector<double> ghost_to_above;
-    std::vector<double> ghost_to_below;
-    std::vector<double> ghost_from_above;
-    std::vector<double> ghost_from_below;
+//     // std::cout << "rank [" << rank << "] counter[" << counter << "]\n";
+//     // counter ++;
+//     MPI_Barrier(MPI_COMM_WORLD);
+//     // if (rank == 0)
+//     // {
+//     //     std::cout << "==================================\n";
+//     // }
+//     // ============================== SEND / RECEIVE GHOST PARTICLES ================================= //
+//     // Vectors to store particles that need to be sent and received
+//     std::vector<double> ghost_to_above;
+//     std::vector<double> ghost_to_below;
+//     std::vector<double> ghost_from_above;
+//     std::vector<double> ghost_from_below;
 
-    // Define rank above and below
-    int rank_above = (rank + 1 < num_procs) ? rank + 1 : -1;
-    int rank_below = (rank - 1 >= 0) ? rank - 1 : -1;
+//     // Define rank above and below
+//     int rank_above = (rank + 1 < num_procs) ? rank + 1 : -1;
+//     int rank_below = (rank - 1 >= 0) ? rank - 1 : -1;
 
-    // Iterate over local particles to determine which need to be sent
-    for (size_t i = 0; i < local_parts.size(); i++) {
-        if (upper_bound - local_parts[i].y < cutoff) {
-            ghost_to_above.push_back(local_parts[i].x);
-            ghost_to_above.push_back(local_parts[i].y);
-        }
-        if (local_parts[i].y - lower_bound < cutoff) {
-            ghost_to_below.push_back(local_parts[i].x);
-            ghost_to_below.push_back(local_parts[i].y);
-        }
-    }
+//     // Iterate over local particles to determine which need to be sent
+//     for (size_t i = 0; i < local_parts.size(); i++) {
+//         if (upper_bound - local_parts[i].y < cutoff) {
+//             ghost_to_above.push_back(local_parts[i].x);
+//             ghost_to_above.push_back(local_parts[i].y);
+//         }
+//         if (local_parts[i].y - lower_bound < cutoff) {
+//             ghost_to_below.push_back(local_parts[i].x);
+//             ghost_to_below.push_back(local_parts[i].y);
+//         }
+//     }
 
-    MPI_Request requests[4];
-    int req_count = 0;
+//     // Send to rank above and receive from rank below
+//     if (rank_above != -1) {
+//         int ghost_to_above_size = ghost_to_above.size();
+//         int ghost_from_below_size = 0;
+//         MPI_Sendrecv(&ghost_to_above_size, 1, MPI_INT, rank_above, 0,
+//                      &ghost_from_below_size, 1, MPI_INT, rank_below, 0,
+//                      MPI_COMM_WORLD, MPI_STATUS_IGNORE);
+//         // std::cout << "[Rank " << rank << "] Sent " << ghost_to_above_size / 2 
+//         //           << " ghost particles to Rank " << rank_above 
+//         //           << " | Received " << ghost_from_below_size / 2 
+//         //           << " ghost particles from Rank " << rank_below << std::endl;
+//     }
 
-    // Send ghost_to_above to rank_above and receive ghost_from_above from rank_above
-    if (rank_above != -1) {
-        int ghost_to_above_size = ghost_to_above.size();
-        MPI_Isend(&ghost_to_above_size, 1, MPI_INT, rank_above, 0, MPI_COMM_WORLD, &requests[req_count++]);
-        MPI_Isend(ghost_to_above.data(), ghost_to_above_size, MPI_DOUBLE, rank_above, 1, MPI_COMM_WORLD, &requests[req_count++]);
-        
-        int ghost_from_above_size;
-        MPI_Irecv(&ghost_from_above_size, 1, MPI_INT, rank_above, 2, MPI_COMM_WORLD, &requests[req_count++]);
-        MPI_Wait(&requests[req_count - 1], MPI_STATUS_IGNORE);
-        ghost_from_above.resize(ghost_from_above_size);
-        MPI_Irecv(ghost_from_above.data(), ghost_from_above_size, MPI_DOUBLE, rank_above, 3, MPI_COMM_WORLD, &requests[req_count++]);
-    }
+//     // Send to rank below and receive from rank above
+//     if (rank_below != -1) {
+//         int ghost_to_below_size = ghost_to_below.size();
+//         int ghost_from_above_size = 0;
+//         MPI_Sendrecv(&ghost_to_below_size, 1, MPI_INT, rank_below, 1,
+//                      &ghost_from_above_size, 1, MPI_INT, rank_above, 1,
+//                      MPI_COMM_WORLD, MPI_STATUS_IGNORE);
+//         // std::cout << "[Rank " << rank << "] Sent " << ghost_to_below_size / 2 
+//         //           << " ghost particles to Rank " << rank_below 
+//         //           << " | Received " << ghost_from_above_size / 2 
+//         //           << " ghost particles from Rank " << rank_above << std::endl;
+//     }
 
-    // Send ghost_to_below to rank_below and receive ghost_from_below from rank_below
-    if (rank_below != -1) {
-        int ghost_to_below_size = ghost_to_below.size();
-        MPI_Isend(&ghost_to_below_size, 1, MPI_INT, rank_below, 2, MPI_COMM_WORLD, &requests[req_count++]);
-        MPI_Isend(ghost_to_below.data(), ghost_to_below_size, MPI_DOUBLE, rank_below, 3, MPI_COMM_WORLD, &requests[req_count++]);
-        
-        int ghost_from_below_size;
-        MPI_Irecv(&ghost_from_below_size, 1, MPI_INT, rank_below, 0, MPI_COMM_WORLD, &requests[req_count++]);
-        MPI_Wait(&requests[req_count - 1], MPI_STATUS_IGNORE);
-        ghost_from_below.resize(ghost_from_below_size);
-        MPI_Irecv(ghost_from_below.data(), ghost_from_below_size, MPI_DOUBLE, rank_below, 1, MPI_COMM_WORLD, &requests[req_count++]);
-    }
+//     MPI_Barrier(MPI_COMM_WORLD);
 
-    // Wait for all communication to complete
-    MPI_Waitall(req_count, requests, MPI_STATUSES_IGNORE);
+//     // ============================== MOVE PARTICLES ================================= //
 
-    // ============================= Compute Forces ============================= //
-    for (int i = 0; i < local_parts.size(); ++i) {
-        local_parts[i].ax = local_parts[i].ay = 0;
-        for (int j = 0; j < local_parts.size(); ++j) {
-            apply_force(local_parts[i], local_parts[j]);
-        }
-        for (int jj = 0; jj < ghost_from_above.size(); jj+=2) {
-            apply_force(local_parts[i], ghost_from_above[jj], ghost_from_above[jj + 1]);
-        }
-        for (int jjj = 0; jjj < ghost_from_below.size(); jjj+=2) {
-            apply_force(local_parts[i], ghost_from_below[jjj], ghost_from_below[jjj + 1]);
-        }
-    }
+//     for (int i = 0; i < local_parts.size(); ++i) {
+//         move(local_parts[i], local_parts.size());
+//     }
 
-    // ============================== MOVE PARTICLES ================================= //
-    for (int i = 0; i < local_parts.size(); ++i) {
-        move(local_parts[i], local_parts.size());
-        if (local_parts[i].y > upper_bound) {
-            // Move to rank above
-        }
-        if (local_parts[i].y < lower_bound) {
-            // Move to rank below
-        }
-    }
+//     MPI_Barrier(MPI_COMM_WORLD);
+// }
 
+void simulate_one_step(particle_t* parts, int num_parts, double size, int rank, int num_procs) {
+    std::cout << "Process " << rank << " reached before the barrier." << std::endl;
     MPI_Barrier(MPI_COMM_WORLD);
-
-    // Print first particle's position, velocity, and acceleration in rank 0 for debugging
-    if (rank == 0 && !local_parts.empty()) {
-        std::cout << "[Rank 0] First particle after move: "
-                  << "Position: (" << local_parts[0].x << ", " << local_parts[0].y << ") "
-                  << "Velocity: (" << local_parts[0].vx << ", " << local_parts[0].vy << ") "
-                  << "Acceleration: (" << local_parts[0].ax << ", " << local_parts[0].ay << ") "
-                  << std::endl;
-    }
+    std::cout << "Process " << rank << " passed the barrier." << std::endl;
 }
 
 void gather_for_save(particle_t* parts, int num_parts, double size, int rank, int num_procs) {
