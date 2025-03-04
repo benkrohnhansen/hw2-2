@@ -87,8 +87,10 @@ void init_simulation(particle_t* parts, int num_parts, double size, int rank, in
 }
 int counter = 0;
 void simulate_one_step(particle_t* parts, int num_parts, double size, int rank, int num_procs) {
-if (rank == 1) std::cout << "** IN SIMULATE_ONE_STEP ** COUNTER " << counter << std::endl;
-
+    if (rank == 1) {
+	    std::cout << "\n\n** IN SIMULATE_ONE_STEP ** COUNTER " << counter << std::endl;
+    }
+    
     // ============================== MOVE PARTICLES ================================= //
     std::vector<double> ghost_to_above;
     std::vector<double> ghost_to_below;
@@ -151,32 +153,32 @@ if (rank == 1) std::cout << "** IN SIMULATE_ONE_STEP ** COUNTER " << counter << 
     // Wait for all sends/receives to complete
     MPI_Waitall(4, requests, MPI_STATUSES_IGNORE);
     // ============================== PRINT DEBUGGING INFORMATION ================================= //
-if (rank == 1 && local_parts.size() > 0) {
-    std::cout << "\n[DEBUG] Rank " << rank << " | Particle 0 Info:\n";
-    std::cout << "  Position: (" << local_parts[0].x << ", " << local_parts[0].y << ")\n";
-    std::cout << "  Velocity: (" << local_parts[0].vx << ", " << local_parts[0].vy << ")\n";
-    std::cout << "  Acceleration: (" << local_parts[0].ax << ", " << local_parts[0].ay << ")\n";
-}
-    // Print all received ghost particle coordinates from above
-if (ghost_from_above.size() > 0 && rank == 1) {
-    std::cout << "\nReceived " << ghost_from_above.size() / 2
-              << " Ghost Particles from Above:\n";
-    for (size_t i = 0; i < ghost_from_above.size(); i += 2) {
-        std::cout << "  Ghost Particle: x = " << ghost_from_above[i]
-                  << ", y = " << ghost_from_above[i + 1] << "\n";
+    if (rank == 1 && local_parts.size() > 0) {
+        std::cout << "\n[DEBUG] Rank " << rank << " | Particle 0 Info:\n";
+        std::cout << "  Position: (" << local_parts[0].x << ", " << local_parts[0].y << ")\n";
+        std::cout << "  Velocity: (" << local_parts[0].vx << ", " << local_parts[0].vy << ")\n";
+        std::cout << "  Acceleration: (" << local_parts[0].ax << ", " << local_parts[0].ay << ")\n";
     }
-}
-
-// Print all received ghost particle coordinates from below
-if (ghost_from_below.size() > 0 && rank == 1) {
-    std::cout << "\nReceived " << ghost_from_below.size() / 2
-              << " Ghost Particles from Below:\n";
-    for (size_t i = 0; i < ghost_from_below.size(); i += 2) {
-        std::cout << "  Ghost Particle: x = " << ghost_from_below[i]
-                  << ", y = " << ghost_from_below[i + 1] << "\n";
+        // Print all received ghost particle coordinates from above
+    if (ghost_from_above.size() > 0 && rank == 1) {
+        std::cout << "\nReceived " << ghost_from_above.size() / 2
+                    << " Ghost Particles from Above:\n";
+        for (size_t i = 0; i < ghost_from_above.size(); i += 2) {
+            std::cout << "  Ghost Particle: x = " << ghost_from_above[i]
+                        << ", y = " << ghost_from_above[i + 1] << "\n";
+        }
     }
 
-}
+    // Print all received ghost particle coordinates from below
+    if (ghost_from_below.size() > 0 && rank == 1) {
+        std::cout << "\nReceived " << ghost_from_below.size() / 2
+                    << " Ghost Particles from Below:\n";
+        for (size_t i = 0; i < ghost_from_below.size(); i += 2) {
+            std::cout << "  Ghost Particle: x = " << ghost_from_below[i]
+                        << ", y = " << ghost_from_below[i + 1] << "\n";
+        }
+
+    }
 
         // ============================= Compute Forces ============================= //
     for (int i = 0; i < local_parts.size(); ++i) {
@@ -184,24 +186,25 @@ if (ghost_from_below.size() > 0 && rank == 1) {
         for (int j = 0; j < local_parts.size(); ++j) {
             apply_force(local_parts[i], local_parts[j]);
         }
-    // Compute forces with ghost particles from above
-    for (size_t jj = 0; jj < ghost_from_above.size(); jj += 2) {
-        apply_force(local_parts[i], ghost_from_above[jj], ghost_from_above[jj + 1]);
+        // Compute forces with ghost particles from above
+        for (size_t jj = 0; jj < ghost_from_above.size(); jj += 2) {
+            apply_force(local_parts[i], ghost_from_above[jj], ghost_from_above[jj + 1]);
+        }
+
+        // Compute forces with ghost particles from below
+        for (size_t jj = 0; jj < ghost_from_below.size(); jj += 2) {
+            apply_force(local_parts[i], ghost_from_below[jj], ghost_from_below[jj + 1]);
+        }
     }
 
-    // Compute forces with ghost particles from below
-    for (size_t jj = 0; jj < ghost_from_below.size(); jj += 2) {
-        apply_force(local_parts[i], ghost_from_below[jj], ghost_from_below[jj + 1]);
+    // ============================== MOVE PARTICLES ============================== //
+    for (size_t i = 0; i < local_parts.size(); i++) {
+        move(local_parts[i], size);
     }
+    MPI_Barrier(MPI_COMM_WORLD);
+    counter++;
 }
 
-// ============================== MOVE PARTICLES ============================== //
-for (size_t i = 0; i < local_parts.size(); i++) {
-    move(local_parts[i], size);
-}
-MPI_Barrier(MPI_COMM_WORLD);
-counter++;
-}
 void gather_for_save(particle_t* parts, int num_parts, double size, int rank, int num_procs) {
     // Write this function such that at the end of it, the master (rank == 0)
     // processor has an in-order view of all particles. That is, the array
