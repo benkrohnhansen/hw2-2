@@ -51,12 +51,10 @@ void move(particle_t& p, double size) {
     p.vy += p.ay * dt;
     p.x += p.vx * dt;
     p.y += p.vy * dt;
-    //std::cout << "IN MOVE\n";
     // Boundary conditions
     while (p.x < 0 || p.x > size) {
         p.x = p.x < 0 ? -p.x : 2 * size - p.x;
         p.vx = -p.vx;
-	//std::cout << "IN WHILE LOOP\n";
     }
 
     while (p.y < 0 || p.y > size) {
@@ -67,7 +65,6 @@ void move(particle_t& p, double size) {
 
 double lower_bound;
 double upper_bound;
-int local_num_parts; // Define a local variable to store the number of particles per rank
 
 std::vector<particle_t> local_parts;
 
@@ -85,12 +82,8 @@ void init_simulation(particle_t* parts, int num_parts, double size, int rank, in
     }
     MPI_Barrier(MPI_COMM_WORLD);
 }
-int counter = 0;
+
 void simulate_one_step(particle_t* parts, int num_parts, double size, int rank, int num_procs) {
-    if (rank == 1 && counter % 10 == 0) {
-	    std::cout << "\n\n** IN SIMULATE_ONE_STEP ** COUNTER " << counter << std::endl;
-    }
-    
     // ============================== MOVE PARTICLES ================================= //
     std::vector<double> ghost_to_above;
     std::vector<double> ghost_to_below;
@@ -247,10 +240,7 @@ MPI_Waitall(request_count, particle_requests, MPI_STATUSES_IGNORE);
 local_parts.insert(local_parts.end(), particles_from_above.begin(), particles_from_above.end());
 local_parts.insert(local_parts.end(), particles_from_below.begin(), particles_from_below.end());
 
-
-
     MPI_Barrier(MPI_COMM_WORLD);
-    counter++;
 }
 
 
@@ -285,15 +275,8 @@ void gather_for_save(particle_t* parts, int num_parts, double size, int rank, in
 
         // Print the x-coordinate of the first particle
         if (num_parts > 0) {
-            std::cout << "Rank 0: X-coordinate of first particle: "
+            std::cout << "x-coordinate of first particle: "
                       << parts[0].x << std::endl;
         }
     }
-if (rank == 0) {
-    std::cout << "All Particle IDs in system: ";
-    for (int i = 0; i < num_parts; i++) {
-        std::cout << parts[i].id << " ";
-    }
-    std::cout << std::endl;
-}
 }
