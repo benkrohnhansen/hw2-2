@@ -87,7 +87,7 @@ void init_simulation(particle_t* parts, int num_parts, double size, int rank, in
 }
 int counter = 0;
 void simulate_one_step(particle_t* parts, int num_parts, double size, int rank, int num_procs) {
-    if (rank == 1) {
+    if (rank == 1 && counter % 10 == 0) {
 	    std::cout << "\n\n** IN SIMULATE_ONE_STEP ** COUNTER " << counter << std::endl;
     }
     
@@ -152,34 +152,6 @@ void simulate_one_step(particle_t* parts, int num_parts, double size, int rank, 
 
     // Wait for all sends/receives to complete
     MPI_Waitall(4, requests, MPI_STATUSES_IGNORE);
-    // ============================== PRINT DEBUGGING INFORMATION ================================= //
-    if (rank == 1 && local_parts.size() > 0) {
-        std::cout << "\n[DEBUG] Rank " << rank << " | Particle 0 Info:\n";
-        std::cout << "  Position: (" << local_parts[0].x << ", " << local_parts[0].y << ")\n";
-        std::cout << "  Velocity: (" << local_parts[0].vx << ", " << local_parts[0].vy << ")\n";
-        std::cout << "  Acceleration: (" << local_parts[0].ax << ", " << local_parts[0].ay << ")\n";
-    }
-        // Print all received ghost particle coordinates from above
-    if (ghost_from_above.size() > 0 && rank == 1) {
-        std::cout << "\nReceived " << ghost_from_above.size() / 2
-                    << " Ghost Particles from Above:\n";
-        for (size_t i = 0; i < ghost_from_above.size(); i += 2) {
-            std::cout << "  Ghost Particle: x = " << ghost_from_above[i]
-                        << ", y = " << ghost_from_above[i + 1] << "\n";
-        }
-    }
-
-    // Print all received ghost particle coordinates from below
-    if (ghost_from_below.size() > 0 && rank == 1) {
-        std::cout << "\nReceived " << ghost_from_below.size() / 2
-                    << " Ghost Particles from Below:\n";
-        for (size_t i = 0; i < ghost_from_below.size(); i += 2) {
-            std::cout << "  Ghost Particle: x = " << ghost_from_below[i]
-                        << ", y = " << ghost_from_below[i + 1] << "\n";
-        }
-
-    }
-
         // ============================= Compute Forces ============================= //
     for (int i = 0; i < local_parts.size(); ++i) {
         local_parts[i].ax = local_parts[i].ay = 0;
@@ -201,6 +173,134 @@ void simulate_one_step(particle_t* parts, int num_parts, double size, int rank, 
     for (size_t i = 0; i < local_parts.size(); i++) {
         move(local_parts[i], size);
     }
+// ============================== PARTICLE EXCHANGE ACROSS RANKS ================================= //
+
+// Vectors to store particles that need to be sent
+std::vector<particle_t> particles_to_above;
+std::vector<particle_t> particles_to_below;
+
+// Iterate over local particles to identify which need to be sent
+for (size_t i = 0; i < local_parts.size(); ) { // Using i without increment to erase dynamically
+    if (local_parts[i].y >= upper_bound) {
+        particles_to_above.push_back(local_parts[i]);
+        local_parts.erase(local_parts.begin() + i); // Remove from local
+    } else if (local_parts[i].y <= lower_bound) {
+        particles_to_below.push_back(local_parts[i]);
+        local_parts.erase(local_parts.begin() + i); // Remove from local
+    } else {
+        ++i; // Only increment if no erase happens
+    }
+}
+
+// Count particles to be sent
+int num_particles_to_above = particles_to_above.size();
+int num_particles_to_below = particles_to_below.size();
+int num_particles_from_above = 0;
+int num_particles_from_below = 0;
+
+// MPI Requests (renamed from `requests` to `particle_requests`)
+MPI_Request particle_requests[4];
+int request_count = 0;
+
+// ============================== SEND / RECEIVE PARTICLE COUNTS ================================= //
+
+// Send/Receive counts to/from adjacent ranks
+if (rank_above >= 0) {
+    MPI_Isend(&num_particles_to_above, 1, MPI_INT, rank_above, 4, MPI_COMM_WORLD, &particle_requests[request_count++]);
+    MPI_Irecv(&num_particles_from_above, 1, MPI_INT, rank_above, 5, MPI_COMM_WORLD, &particle_requests[request_count++]);
+}
+if (rank_below >= 0) {
+    MPI_Isend(&num_particles_to_below, 1, MPI_INT, rank_below, 5, MPI_COMM_WORLD, &particle_requests[request_count++]);
+    MPI_Irecv(&num_particles_from_below, 1, MPI_INT, rank_below, 4, MPI_COMM_WORLD, &particle_requests[request_count++]);
+}
+
+// Wait for the counts to be exchanged before proceeding
+MPI_Waitall(request_count, particle_requests, MPI_STATUSES_IGNORE);
+
+// Resize vectors for receiving particles
+std::vector<particle_t> particles_from_above(num_particles_from_above);
+std::vector<particle_t> particles_from_below(num_particles_from_below);
+
+// ============================== SEND / RECEIVE PARTICLE DATA ================================= //
+// Reset request count
+request_count = 0;
+
+// Send and receive actual particle data
+if (num_particles_to_above > 0 && rank_above >= 0) {
+    MPI_Isend(particles_to_above.data(), num_particles_to_above, PARTICLE, rank_above, 6, MPI_COMM_WORLD, &particle_requests[request_count++]);
+}
+if (num_particles_from_below > 0 && rank_below >= 0) {
+    MPI_Irecv(particles_from_below.data(), num_particles_from_below, PARTICLE, rank_below, 6, MPI_COMM_WORLD, &particle_requests[request_count++]);
+}
+
+if (num_particles_to_below > 0 && rank_below >= 0) {
+    MPI_Isend(particles_to_below.data(), num_particles_to_below, PARTICLE, rank_below, 7, MPI_COMM_WORLD, &particle_requests[request_count++]);
+}
+if (num_particles_from_above > 0 && rank_above >= 0) {
+    MPI_Irecv(particles_from_above.data(), num_particles_from_above, PARTICLE, rank_above, 7, MPI_COMM_WORLD, &particle_requests[request_count++]);
+}
+
+// Wait for all particle transfers to complete
+MPI_Waitall(request_count, particle_requests, MPI_STATUSES_IGNORE);
+
+// ============================== INSERT RECEIVED PARTICLES ================================= //
+local_parts.insert(local_parts.end(), particles_from_above.begin(), particles_from_above.end());
+local_parts.insert(local_parts.end(), particles_from_below.begin(), particles_from_below.end());
+
+// ============================== PRINT DEBUGGING INFORMATION ================================= //
+if ((num_particles_to_above > 0 || num_particles_to_below > 0 || 
+    num_particles_from_above > 0 || num_particles_from_below > 0) && rank == 1) {
+    
+    std::cout << "\n[DEBUG] Rank " << rank << " | Step " << counter << "\n";
+
+    // Sent particles
+    if (num_particles_to_above > 0) {
+        std::cout << "  Sent " << num_particles_to_above << " particles to Rank " << rank_above << ":\n";
+        for (const auto& p : particles_to_above) {
+            std::cout << "    ID: " << p.id
+                      << " | Pos: (" << p.x << ", " << p.y << ")"
+                      << " | Vel: (" << p.vx << ", " << p.vy << ")"
+                      << " | Acc: (" << p.ax << ", " << p.ay << ")\n";
+        }
+    }
+    if (num_particles_to_below > 0) {
+        std::cout << "  Sent " << num_particles_to_below << " particles to Rank " << rank_below << ":\n";
+        for (const auto& p : particles_to_below) {
+            std::cout << "    ID: " << p.id
+                      << " | Pos: (" << p.x << ", " << p.y << ")"
+                      << " | Vel: (" << p.vx << ", " << p.vy << ")"
+                      << " | Acc: (" << p.ax << ", " << p.ay << ")\n";
+        }
+    }
+
+    // Received particles
+    if (num_particles_from_above > 0) {
+        std::cout << "  Received " << num_particles_from_above << " particles from Rank " << rank_above << ":\n";
+        for (const auto& p : particles_from_above) {
+            std::cout << "    ID: " << p.id
+                      << " | Pos: (" << p.x << ", " << p.y << ")"
+                      << " | Vel: (" << p.vx << ", " << p.vy << ")"
+                      << " | Acc: (" << p.ax << ", " << p.ay << ")\n";
+        }
+    }
+    if (num_particles_from_below > 0) {
+        std::cout << "  Received " << num_particles_from_below << " particles from Rank " << rank_below << ":\n";
+        for (const auto& p : particles_from_below) {
+            std::cout << "    ID: " << p.id
+                      << " | Pos: (" << p.x << ", " << p.y << ")"
+                      << " | Vel: (" << p.vx << ", " << p.vy << ")"
+                      << " | Acc: (" << p.ax << ", " << p.ay << ")\n";
+        }
+    }
+
+    // Print all IDs of particles currently in the system
+    std::cout << "  [INFO] Rank " << rank << " Particle IDs in System: ";
+    for (const auto& p : local_parts) {
+        std::cout << p.id << " ";
+    }
+    std::cout << "\n";
+}
+
     MPI_Barrier(MPI_COMM_WORLD);
     counter++;
 }
