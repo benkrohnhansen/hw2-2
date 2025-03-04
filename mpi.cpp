@@ -247,67 +247,53 @@ MPI_Waitall(request_count, particle_requests, MPI_STATUSES_IGNORE);
 local_parts.insert(local_parts.end(), particles_from_above.begin(), particles_from_above.end());
 local_parts.insert(local_parts.end(), particles_from_below.begin(), particles_from_below.end());
 
-// ============================== PRINT DEBUGGING INFORMATION ================================= //
-if ((num_particles_to_above > 0 || num_particles_to_below > 0 || 
-    num_particles_from_above > 0 || num_particles_from_below > 0) && rank == 1) {
-    
-    std::cout << "\n[DEBUG] Rank " << rank << " | Step " << counter << "\n";
 
-    // Sent particles
-    if (num_particles_to_above > 0) {
-        std::cout << "  Sent " << num_particles_to_above << " particles to Rank " << rank_above << ":\n";
-        for (const auto& p : particles_to_above) {
-            std::cout << "    ID: " << p.id
-                      << " | Pos: (" << p.x << ", " << p.y << ")"
-                      << " | Vel: (" << p.vx << ", " << p.vy << ")"
-                      << " | Acc: (" << p.ax << ", " << p.ay << ")\n";
-        }
-    }
-    if (num_particles_to_below > 0) {
-        std::cout << "  Sent " << num_particles_to_below << " particles to Rank " << rank_below << ":\n";
-        for (const auto& p : particles_to_below) {
-            std::cout << "    ID: " << p.id
-                      << " | Pos: (" << p.x << ", " << p.y << ")"
-                      << " | Vel: (" << p.vx << ", " << p.vy << ")"
-                      << " | Acc: (" << p.ax << ", " << p.ay << ")\n";
-        }
-    }
-
-    // Received particles
-    if (num_particles_from_above > 0) {
-        std::cout << "  Received " << num_particles_from_above << " particles from Rank " << rank_above << ":\n";
-        for (const auto& p : particles_from_above) {
-            std::cout << "    ID: " << p.id
-                      << " | Pos: (" << p.x << ", " << p.y << ")"
-                      << " | Vel: (" << p.vx << ", " << p.vy << ")"
-                      << " | Acc: (" << p.ax << ", " << p.ay << ")\n";
-        }
-    }
-    if (num_particles_from_below > 0) {
-        std::cout << "  Received " << num_particles_from_below << " particles from Rank " << rank_below << ":\n";
-        for (const auto& p : particles_from_below) {
-            std::cout << "    ID: " << p.id
-                      << " | Pos: (" << p.x << ", " << p.y << ")"
-                      << " | Vel: (" << p.vx << ", " << p.vy << ")"
-                      << " | Acc: (" << p.ax << ", " << p.ay << ")\n";
-        }
-    }
-
-    // Print all IDs of particles currently in the system
-    std::cout << "  [INFO] Rank " << rank << " Particle IDs in System: ";
-    for (const auto& p : local_parts) {
-        std::cout << p.id << " ";
-    }
-    std::cout << "\n";
-}
 
     MPI_Barrier(MPI_COMM_WORLD);
     counter++;
 }
 
+
 void gather_for_save(particle_t* parts, int num_parts, double size, int rank, int num_procs) {
-    // Write this function such that at the end of it, the master (rank == 0)
-    // processor has an in-order view of all particles. That is, the array
-    // parts is complete and sorted by particle id.
-    // Print the x coordinate of the first particle
+    // Get the local number of particles on each rank
+    int local_count = local_parts.size();  // Use local_parts.size() instead of num_parts
+    std::vector<int> all_counts(num_procs);
+
+    // Gather particle counts from all ranks
+    MPI_Gather(&local_count, 1, MPI_INT, all_counts.data(), 1, MPI_INT, 0, MPI_COMM_WORLD);
+
+    // Compute displacement array for MPI_Gatherv
+    std::vector<int> displacements(num_procs, 0);
+    if (rank == 0) {
+        int offset = 0;
+        for (int i = 0; i < num_procs; i++) {
+            displacements[i] = offset;
+            offset += all_counts[i];
+        }
+    }
+
+    // Rank 0 already has enough space allocated in `parts`, so no need to resize
+    MPI_Gatherv(local_parts.data(), local_count, PARTICLE,
+                parts, all_counts.data(), displacements.data(),
+                PARTICLE, 0, MPI_COMM_WORLD);
+
+    // Rank 0 sorts the gathered particles by ID
+    if (rank == 0) {
+        std::sort(parts, parts + num_parts, [](const particle_t& a, const particle_t& b) {
+            return a.id < b.id;
+        });
+
+        // Print the x-coordinate of the first particle
+        if (num_parts > 0) {
+            std::cout << "Rank 0: X-coordinate of first particle: "
+                      << parts[0].x << std::endl;
+        }
+    }
+if (rank == 0) {
+    std::cout << "All Particle IDs in system: ";
+    for (int i = 0; i < num_parts; i++) {
+        std::cout << parts[i].id << " ";
+    }
+    std::cout << std::endl;
+}
 }
