@@ -27,6 +27,8 @@ std::vector<particle_t> ghost_from_top_right;
 std::vector<particle_t> ghost_from_bottom_left;
 std::vector<particle_t> ghost_from_bottom_right;
 
+std::vector<particle_t> local_parts;
+
 // Apply force between two particles
 void apply_force(particle_t& particle, particle_t& neighbor) {
     // Calculate Distance
@@ -81,6 +83,61 @@ void move(particle_t& p, double size) {
         p.y = p.y < 0 ? -p.y : 2 * size - p.y;
         p.vy = -p.vy;
     }
+}
+
+// -------- Computing local forces via spatial partitioning ----------
+void compute_local_forces(std::vector<particle_t>& local_parts)
+{
+// Choosing local cell size
+double local_cell_size = cutoff;
+
+//determining local subdomain dimensions
+double local_width = x_upper_bound - x_lower_bound;
+double local_height = y_upper_bound - y_lower_bound;
+
+// Number of bins in 2 dimensions
+int num_bins_x = static_cast<int>(ceil(local_width / local_cell_size));
+int num_bins_y = static_cast<int>(ceil(local_height / local_cell_size));
+std::vector<std::vector<int>> bins(num_bins_x * num_bins_y);
+
+//Bin each local particle
+for (int i=0; i<local_parts.size(); i++)
+{
+double x_relative = local_parts[i].x - x_lower_bound;
+double y_relative = local_parts[i].y - y_lower_bound;
+int bin_x = std::min(num_bins_x -1, static_cast<int>(x_relative - local_cell_size));
+int bin_y = std::min(num_bins_y -1, static_cast<int>(y_relative - local_cell_size));
+int bin_index = bin_y * num_bins_x + bin_x;
+bins[bin_index].push_back(i);
+}
+
+// Reset forces
+for (int i=0; i<local_parts.size(); i++) {
+    local_parts[i].ax = 0;
+    local_parts[i].ay = 0;
+}
+
+// Loop over each bin and compute force interactions only with particles in the same
+// bin or in the eight neighboring bins.
+for (int bx=0; bx<num_bins_x; bx++) {
+    for (int by=0; by<num_bins_y; by++) { 
+        int bin_index = by * num_bins_x + bx
+        // iterate over neighboring bins + current bin
+        for (int nbx = std::max(0, bx-1); nbx <= std::min(num_bins_x - 1, bx + 1); nbx++) {
+            for (int nby = std::max(0, by - 1); nby <= std::min(num_bins_y - 1, by + 1); nby++) {
+                int neighbor_index = nby * num_bins_x + nbx;
+                // For each particle in current bin:
+                for (int i : bins[bin_index]) {
+                // Interact with each particle in neighboring bin. If in same bin, compute only when neighbor_index > i
+                    for (int j : bins[neighbor_index]) {
+                        if (bin_index == neighbor_index && j <= i) continue;
+                        apply_force(local_parts[i], local_parts[j]);
+                    }
+                }
+            }   
+        }
+    }
+}
 }
 
 double lower_bound;
@@ -306,46 +363,37 @@ void simulate_one_step(particle_t* parts, int num_parts, double size, int rank, 
 
     // Wait for all sends/receives to complete
     MPI_Waitall(req_index, particle_requests, MPI_STATUSES_IGNORE);
-        // ============================= Compute Forces ============================= //
-    for (int i = 0; i < local_parts.size(); ++i) {
-        local_parts[i].ax = local_parts[i].ay = 0;
+        // ============================= Compute Local Forces ============================= //
 
-        for (int j = 0; j < local_parts.size(); ++j) {
-            apply_force(local_parts[i], local_parts[j]);
+    compute_local_forces(local_parts);
+    for (int i=0; i<local_parts.size(), i++) {
+    
+        // Apply forces from ghost particles coming from each direction.
+        for (particle_t &ghost : ghost_from_above) {
+            apply_force(local_parts[i], ghost);
         }
-        // Compute forces with ghost particles from
-        // Above
-        for (size_t jj = 0; jj < ghost_from_above.size(); jj += 2) {
-            apply_force(local_parts[i], ghost_from_above[jj]);
+        for (particle_t &ghost : ghost_from_below) {
+            apply_force(local_parts[i], ghost);
         }
-        // Below
-        for (size_t jj = 0; jj < ghost_from_below.size(); jj += 2) {
-            apply_force(local_parts[i], ghost_from_below[jj]);
+        for (particle_t &ghost : ghost_from_left) {
+            apply_force(local_parts[i], ghost);
         }
-        // Left
-        for (size_t jj = 0; jj < ghost_from_left.size(); jj += 2) {
-            apply_force(local_parts[i], ghost_from_left[jj]);
+        for (particle_t &ghost : ghost_from_right) {
+            apply_force(local_parts[i], ghost);
         }
-        // Right
-        for (size_t jj = 0; jj < ghost_from_right.size(); jj += 2) {
-            apply_force(local_parts[i], ghost_from_right[jj]);
+        for (particle_t &ghost : ghost_from_top_left) {
+            apply_force(local_parts[i], ghost);
         }
-        // Top Left
-        for (size_t jj = 0; jj < ghost_from_top_left.size(); jj += 2) {
-            apply_force(local_parts[i], ghost_from_top_left[jj]);
+        for (particle_t &ghost : ghost_from_top_right) {
+            apply_force(local_parts[i], ghost);
         }
-        // Top Right
-        for (size_t jj = 0; jj < ghost_from_top_right.size(); jj += 2) {
-            apply_force(local_parts[i], ghost_from_top_right[jj]);
+        for (particle_t &ghost : ghost_from_bottom_left) {
+            apply_force(local_parts[i], ghost);
         }
-        // Bottom Left
-        for (size_t jj = 0; jj < ghost_from_bottom_left.size(); jj += 2) {
-            apply_force(local_parts[i], ghost_from_bottom_left[jj]);
+        for (particle_t &ghost : ghost_from_bottom_right) {
+            apply_force(local_parts[i], ghost);
         }
-        // Bottom Right
-        for (size_t jj = 0; jj < ghost_from_bottom_right.size(); jj += 2) {
-            apply_force(local_parts[i], ghost_from_bottom_right[jj]);
-        }
+    }
 
     // ============================== MOVE PARTICLES ============================== //
     for (size_t i = 0; i < local_parts.size(); i++) {
