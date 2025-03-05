@@ -201,8 +201,8 @@ int main(int argc, char** argv) {
         std::cout << "Particle Exchange Time: " << part << " seconds" << std::endl;
         std::cout << "Particle Insert Time: " << part_insert << " seconds" << std::endl;
         std::cout << "End Barrier Time: " << end_barrier << " seconds" << std::endl;
-        std::cout << "Sorting Time: " << sort_t << " seconds" << std::endl;
-        std::cout << "Gathering Time: " << gather_t << " seconds" << std::endl;
+        std::cout << "Gathering Time: " << gather_time << " seconds" << std::endl;
+        std::cout << "Sorting Time: " << sort_time << " seconds" << std::endl;
         std::cout << "=====================================" << std::endl;
     }
     if (fsave) {
