@@ -154,12 +154,12 @@ int main(int argc, char** argv) {
 
     init_simulation(parts, num_parts, size, rank, num_procs);
 
-    double ghost_calc; double time_ghost_cnt_comm; double ghost_cnt_waitall; 
-    double ghost_comm; double ghost_waitall; double force_calc; double move_time; 
-    double calc_particle_mv; double part_cnt_waitall; double part_cnt; 
-    double part_waitall; double part; double part_insert; double end_barrier;
-
-    double sort_time; double gather_time;
+    double ghost_calc = 0.0, time_ghost_cnt_comm = 0.0, ghost_cnt_waitall = 0.0;
+    double ghost_comm = 0.0, ghost_waitall = 0.0, force_calc = 0.0, move_time = 0.0;
+    double calc_particle_mv = 0.0, part_cnt_waitall = 0.0, part_cnt = 0.0;
+    double part_waitall = 0.0, part = 0.0, part_insert = 0.0, end_barrier = 0.0;
+    double sort_time = 0.0, gather_time = 0.0;
+    
 
     for (int step = 0; step < nsteps; ++step) {
         simulate_one_step(parts, num_parts, size, rank, num_procs,

@@ -233,7 +233,7 @@ void simulate_one_step(particle_t* parts, int num_parts, double size, int rank, 
     // Wait for the counts to be exchanged before proceeding
     double part_cnt_waitall_start = MPI_Wtime();
     MPI_Waitall(request_count, particle_requests, MPI_STATUSES_IGNORE);
-    part_cnt_waitall += part_cnt_waitall_start - MPI_Wtime(); 
+    part_cnt_waitall += MPI_Wtime() - part_cnt_waitall_start; 
     part_cnt += MPI_Wtime() - part_cnt_start;
 
     // Resize vectors for receiving particles
@@ -271,7 +271,7 @@ void simulate_one_step(particle_t* parts, int num_parts, double size, int rank, 
     double part_insert_start = MPI_Wtime();
     local_parts.insert(local_parts.end(), particles_from_above.begin(), particles_from_above.end());
     local_parts.insert(local_parts.end(), particles_from_below.begin(), particles_from_below.end());
-    part_insert = MPI_Wtime() - part_insert_start;
+    part_insert += MPI_Wtime() - part_insert_start;
 
     double end_barrier_start = MPI_Wtime();
     MPI_Barrier(MPI_COMM_WORLD);
