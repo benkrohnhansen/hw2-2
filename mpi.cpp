@@ -85,7 +85,7 @@ void init_simulation(particle_t* parts, int num_parts, double size, int rank, in
 
 void simulate_one_step(particle_t* parts, int num_parts, double size, int rank, int num_procs,
                        double& ghost_calc, double& time_ghost_cnt_comm, double& ghost_cnt_waitall, 
-                       double& ghost_comm, double& ghost_waitall, double& force_calc, double& move, 
+                       double& ghost_comm, double& ghost_waitall, double& force_calc, double& move_time, 
                        double& calc_particle_mv, double& part_cnt_waitall, double& part_cnt, 
                        double& part_waitall, double& part, double& part_insert, double& end_barrier) {
 
@@ -185,7 +185,7 @@ void simulate_one_step(particle_t* parts, int num_parts, double size, int rank, 
     for (size_t i = 0; i < local_parts.size(); i++) {
         move(local_parts[i], size);
     }
-    double move += MPI_Wtime() - move_start;
+    double move_time += MPI_Wtime() - move_start;
     // ============================== PARTICLE EXCHANGE ACROSS RANKS ================================= //
 
     // Vectors to store particles that need to be sent

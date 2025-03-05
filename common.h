@@ -30,7 +30,7 @@ extern MPI_Datatype PARTICLE;
 void init_simulation(particle_t* parts, int num_parts, double size, int rank, int num_procs);
 void simulate_one_step(particle_t* parts, int num_parts, double size, int rank, int num_procs,
     double& ghost_calc, double& time_ghost_cnt_comm, double& ghost_cnt_waitall, 
-    double& ghost_comm, double& ghost_waitall, double& force_calc, double& move, 
+    double& ghost_comm, double& ghost_waitall, double& force_calc, double& move_time, 
     double& calc_particle_mv, double& part_cnt_waitall, double& part_cnt, 
     double& part_waitall, double& part, double& part_insert, double& end_barrier);
 void gather_for_save(particle_t* parts, int num_parts, double size, int rank, int num_procs, 

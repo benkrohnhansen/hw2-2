@@ -155,7 +155,7 @@ int main(int argc, char** argv) {
     init_simulation(parts, num_parts, size, rank, num_procs);
 
     double ghost_calc; double time_ghost_cnt_comm; double ghost_cnt_waitall; 
-    double ghost_comm; double ghost_waitall; double force_calc; double move; 
+    double ghost_comm; double ghost_waitall; double force_calc; double move_time; 
     double calc_particle_mv; double part_cnt_waitall; double part_cnt; 
     double part_waitall; double part; double part_insert; double end_barrier;
 
@@ -164,7 +164,7 @@ int main(int argc, char** argv) {
     for (int step = 0; step < nsteps; ++step) {
         simulate_one_step(parts, num_parts, size, rank, num_procs,
             ghost_calc, time_ghost_cnt_comm, ghost_cnt_waitall, 
-            ghost_comm, ghost_waitall, force_calc, move, 
+            ghost_comm, ghost_waitall, force_calc, move_time, 
             calc_particle_mv, part_cnt_waitall, part_cnt, 
             part_waitall, part, part_insert, end_barrier);
 
@@ -193,7 +193,7 @@ int main(int argc, char** argv) {
         std::cout << "Ghost Particle Comm Time: " << ghost_comm << " seconds" << std::endl;
         std::cout << "Ghost Waitall Time: " << ghost_waitall << " seconds" << std::endl;
         std::cout << "Force Calculation Time: " << force_calc << " seconds" << std::endl;
-        std::cout << "Particle Move Time: " << move << " seconds" << std::endl;
+        std::cout << "Particle Move Time: " << move_time << " seconds" << std::endl;
         std::cout << "Calculate Particle Movement Time: " << calc_particle_mv << " seconds" << std::endl;
         std::cout << "Particle Count Waitall Time: " << part_cnt_waitall << " seconds" << std::endl;
         std::cout << "Particle Count Time: " << part_cnt << " seconds" << std::endl;
