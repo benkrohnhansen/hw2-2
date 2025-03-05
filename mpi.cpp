@@ -173,137 +173,118 @@ void init_simulation(particle_t* parts, int num_parts, double size, int rank, in
 }
 
 void simulate_one_step(particle_t* parts, int num_parts, double size, int rank, int num_procs) {
-    // ============================== MOVE PARTICLES ================================= //
-
-    // Define rank horizontal and vertical
-    int rank_left = (rank_x > 0) ? rank - 1 : -1;
-    int rank_right = (rank_x < grid_size - 1) ? rank + 1 : -1;
-    int rank_above = (rank_y > 0) ? rank - grid_size : -1;
-    int rank_below = (rank_y < grid_size - 1) ? rank + grid_size : -1;
-    
-    // Diagonal
-    int rank_top_left = (rank_left >= 0 && rank_above >= 0) ? rank_above - 1 : -1;
-    int rank_top_right = (rank_right >= 0 && rank_above >= 0) ? rank_above + 1 : -1;
-    int rank_bottom_left = (rank_left >= 0 && rank_below >= 0) ? rank_below - 1 : -1;
+    // -------------------------- Domain Neighbors Setup --------------------------
+    // Assume rank_x, rank_y, and grid_size are computed in init_simulation.
+    int rank_left   = (rank_x > 0) ? rank - 1 : -1;
+    int rank_right  = (rank_x < grid_size - 1) ? rank + 1 : -1;
+    int rank_above  = (rank_y > 0) ? rank - grid_size : -1;
+    int rank_below  = (rank_y < grid_size - 1) ? rank + grid_size : -1;
+    int rank_top_left     = (rank_left >= 0 && rank_above >= 0) ? rank_above - 1 : -1;
+    int rank_top_right    = (rank_right >= 0 && rank_above >= 0) ? rank_above + 1 : -1;
+    int rank_bottom_left  = (rank_left >= 0 && rank_below >= 0) ? rank_below - 1 : -1;
     int rank_bottom_right = (rank_right >= 0 && rank_below >= 0) ? rank_below + 1 : -1;
 
-    // Iterate over local particles to determine ghost particle counts
+    // -------------------------- Ghost Particle Extraction --------------------------
+    // Clear ghost vectors
+    ghost_to_left.clear();    ghost_to_right.clear();
+    ghost_to_above.clear();   ghost_to_below.clear();
+    ghost_to_top_left.clear();ghost_to_top_right.clear();
+    ghost_to_bottom_left.clear();ghost_to_bottom_right.clear();
+
     for (size_t i = 0; i < local_parts.size(); i++) {
         particle_t& p = local_parts[i];
-
-        // horizontal side
-        if (p.x - x_lower_bound < cutoff && 
-            p.y >= y_lower_bound && p.y < y_upper_bound) {
+        // Horizontal ghost extraction
+        if (p.x - x_lower_bound < cutoff && p.y >= y_lower_bound && p.y < y_upper_bound)
             ghost_to_left.push_back(p);
-        }
-        if (x_upper_bound - p.x < cutoff &&
-            p.y >= y_lower_bound && p.y < y_upper_bound) {
+        if (x_upper_bound - p.x < cutoff && p.y >= y_lower_bound && p.y < y_upper_bound)
             ghost_to_right.push_back(p);
-        }
-        // vertical side
-        if (p.y - y_lower_bound < cutoff &&
-            p.x >= x_lower_bound && p.x < x_upper_bound) {
+        // Vertical ghost extraction
+        if (p.y - y_lower_bound < cutoff && p.x >= x_lower_bound && p.x < x_upper_bound)
             ghost_to_below.push_back(p);
-        }
-        if (y_upper_bound - p.y < cutoff &&
-            p.x >= x_lower_bound && p.x < x_upper_bound) {
+        if (y_upper_bound - p.y < cutoff && p.x >= x_lower_bound && p.x < x_upper_bound)
             ghost_to_above.push_back(p);
-        }
-        // diagonal side
-        if (p.x - x_lower_bound < cutoff && 
-            p.y - y_lower_bound < cutoff) {
+        // Diagonals
+        if (p.x - x_lower_bound < cutoff && p.y - y_lower_bound < cutoff)
             ghost_to_bottom_left.push_back(p);
-        }
-        if (x_upper_bound - p.x < cutoff &&
-            p.y - y_lower_bound < cutoff) {
+        if (x_upper_bound - p.x < cutoff && p.y - y_lower_bound < cutoff)
             ghost_to_bottom_right.push_back(p);
-        }
-        if (p.x - x_lower_bound < cutoff &&
-            y_upper_bound - p.y < cutoff) {
+        if (p.x - x_lower_bound < cutoff && y_upper_bound - p.y < cutoff)
             ghost_to_top_left.push_back(p);
-        }
-        if (x_upper_bound - p.x < cutoff && 
-            y_upper_bound - p.y < cutoff) {
+        if (x_upper_bound - p.x < cutoff && y_upper_bound - p.y < cutoff)
             ghost_to_top_right.push_back(p);
-        }
     }
 
-    // Set ghost counts based on vector sizes
-    int ghost_to_above_count = ghost_to_above.size();
-    int ghost_to_below_count = ghost_to_below.size();
-    int ghost_to_left_count = ghost_to_left.size();
-    int ghost_to_right_count = ghost_to_right.size();
-    int ghost_to_top_left_count = ghost_to_top_left.size();
-    int ghost_to_top_right_count = ghost_to_top_right.size();
-    int ghost_to_bottom_left_count = ghost_to_bottom_left.size();   
+    // Set ghost counts
+    int ghost_to_above_count    = ghost_to_above.size();
+    int ghost_to_below_count    = ghost_to_below.size();
+    int ghost_to_left_count     = ghost_to_left.size();
+    int ghost_to_right_count    = ghost_to_right.size();
+    int ghost_to_top_left_count     = ghost_to_top_left.size();
+    int ghost_to_top_right_count    = ghost_to_top_right.size();
+    int ghost_to_bottom_left_count  = ghost_to_bottom_left.size();
     int ghost_to_bottom_right_count = ghost_to_bottom_right.size();
 
-    int ghost_from_above_count = 0;
-    int ghost_from_below_count = 0;
-    int ghost_from_left_count = 0;
-    int ghost_from_right_count = 0;
-    int ghost_from_top_left_count = 0;
-    int ghost_from_top_right_count = 0;
-    int ghost_from_bottom_left_count = 0;
+    int ghost_from_above_count    = 0;
+    int ghost_from_below_count    = 0;
+    int ghost_from_left_count     = 0;
+    int ghost_from_right_count    = 0;
+    int ghost_from_top_left_count     = 0;
+    int ghost_from_top_right_count    = 0;
+    int ghost_from_bottom_left_count  = 0;
     int ghost_from_bottom_right_count = 0;
 
-    // ============================== SEND / RECEIVE GHOST PARTICLE COUNTS ================================= //
-    // Define particle_requests array and initialize it
-    MPI_Request particle_requests[16]; // Array for non-blocking communication
-        for (int i = 0; i < 16; i++) {
-            particle_requests[i] = MPI_REQUEST_NULL; // Initialize requests to NULL
-        }
-    
+    // -------------------------- Ghost Count Communication --------------------------
+    MPI_Request particle_requests[16];
+    for (int i = 0; i < 16; i++) {
+        particle_requests[i] = MPI_REQUEST_NULL;
+    }
     int req_index = 0;
-
-    // Non-blocking send and receive for ghost counts
     // Horizontal
     if (rank_left >= 0) {
         MPI_Sendrecv(&ghost_to_left_count, 1, MPI_INT, rank_left, 0,
-            &ghost_from_left_count, 1, MPI_INT, rank_left, 1,
-            MPI_COMM_WORLD, MPI_STATUS_IGNORE);
-        }
+                     &ghost_from_left_count, 1, MPI_INT, rank_left, 1,
+                     MPI_COMM_WORLD, MPI_STATUS_IGNORE);
+    }
     if (rank_right >= 0) {
         MPI_Sendrecv(&ghost_to_right_count, 1, MPI_INT, rank_right, 1,
-            &ghost_from_right_count, 1, MPI_INT, rank_right, 0,
-            MPI_COMM_WORLD, MPI_STATUS_IGNORE);
-        }
+                     &ghost_from_right_count, 1, MPI_INT, rank_right, 0,
+                     MPI_COMM_WORLD, MPI_STATUS_IGNORE);
+    }
     // Vertical
     if (rank_above >= 0) {
         MPI_Sendrecv(&ghost_to_above_count, 1, MPI_INT, rank_above, 2,
-            &ghost_from_above_count, 1, MPI_INT, rank_above, 3,
-            MPI_COMM_WORLD, MPI_STATUS_IGNORE);
+                     &ghost_from_above_count, 1, MPI_INT, rank_above, 3,
+                     MPI_COMM_WORLD, MPI_STATUS_IGNORE);
+    }
     if (rank_below >= 0) {
         MPI_Sendrecv(&ghost_to_below_count, 1, MPI_INT, rank_below, 3,
-            &ghost_from_below_count, 1, MPI_INT, rank_below, 2,
-            MPI_COMM_WORLD, MPI_STATUS_IGNORE);
-        }
-    // Diagonal 
+                     &ghost_from_below_count, 1, MPI_INT, rank_below, 2,
+                     MPI_COMM_WORLD, MPI_STATUS_IGNORE);
+    }
+    // Diagonal
     if (rank_top_left >= 0) {
         MPI_Sendrecv(&ghost_to_top_left_count, 1, MPI_INT, rank_top_left, 4,
-            &ghost_from_top_left_count, 1, MPI_INT, rank_top_left, 5,
-            MPI_COMM_WORLD, MPI_STATUS_IGNORE);
-        }
+                     &ghost_from_top_left_count, 1, MPI_INT, rank_top_left, 5,
+                     MPI_COMM_WORLD, MPI_STATUS_IGNORE);
+    }
     if (rank_top_right >= 0) {
         MPI_Sendrecv(&ghost_to_top_right_count, 1, MPI_INT, rank_top_right, 5,
-            &ghost_from_top_right_count, 1, MPI_INT, rank_top_right, 4,
-            MPI_COMM_WORLD, MPI_STATUS_IGNORE);
-        }
+                     &ghost_from_top_right_count, 1, MPI_INT, rank_top_right, 4,
+                     MPI_COMM_WORLD, MPI_STATUS_IGNORE);
+    }
     if (rank_bottom_left >= 0) {
         MPI_Sendrecv(&ghost_to_bottom_left_count, 1, MPI_INT, rank_bottom_left, 6,
-            &ghost_from_bottom_left_count, 1, MPI_INT, rank_bottom_left, 7,
-            MPI_COMM_WORLD, MPI_STATUS_IGNORE);
-        }
+                     &ghost_from_bottom_left_count, 1, MPI_INT, rank_bottom_left, 7,
+                     MPI_COMM_WORLD, MPI_STATUS_IGNORE);
+    }
     if (rank_bottom_right >= 0) {
         MPI_Sendrecv(&ghost_to_bottom_right_count, 1, MPI_INT, rank_bottom_right, 7,
-            &ghost_from_bottom_right_count, 1, MPI_INT, rank_bottom_right, 6,
-            MPI_COMM_WORLD, MPI_STATUS_IGNORE);
-        }
-
-    // Wait for all sends/receives to complete
+                     &ghost_from_bottom_right_count, 1, MPI_INT, rank_bottom_right, 6,
+                     MPI_COMM_WORLD, MPI_STATUS_IGNORE);
+    }
+    // If no non-blocking calls were posted, req_index remains 0. (MPI_Waitall with 0 requests is safe.)
     MPI_Waitall(req_index, particle_requests, MPI_STATUSES_IGNORE);
 
-    // Resize vectors based on received counts
     ghost_from_left.resize(ghost_from_left_count);
     ghost_from_right.resize(ghost_from_right_count);
     ghost_from_above.resize(ghost_from_above_count);
@@ -313,8 +294,7 @@ void simulate_one_step(particle_t* parts, int num_parts, double size, int rank, 
     ghost_from_bottom_left.resize(ghost_from_bottom_left_count);
     ghost_from_bottom_right.resize(ghost_from_bottom_right_count);
 
-
-    // ============================== SEND / RECEIVE GHOST PARTICLE DATA ================================= //
+    // -------------------------- Ghost Data Communication --------------------------
     // Horizontal (Left / Right)
     if (ghost_to_left_count > 0 && rank_left >= 0) {
         MPI_Sendrecv(ghost_to_left.data(), ghost_to_left_count, PARTICLE, rank_left, 8,
@@ -329,46 +309,43 @@ void simulate_one_step(particle_t* parts, int num_parts, double size, int rank, 
     // Vertical (Above / Below)
     if (ghost_to_above_count > 0 && rank_above >= 0) {
         MPI_Sendrecv(ghost_to_above.data(), ghost_to_above_count, PARTICLE, rank_above, 2,
-                     ghost_from_below.data(), ghost_from_below_count, PARTICLE, rank_below, 2,
+                     ghost_from_above.data(), ghost_from_above_count, PARTICLE, rank_above, 3,
                      MPI_COMM_WORLD, MPI_STATUS_IGNORE);
     }
     if (ghost_to_below_count > 0 && rank_below >= 0) {
         MPI_Sendrecv(ghost_to_below.data(), ghost_to_below_count, PARTICLE, rank_below, 3,
-                     ghost_from_above.data(), ghost_from_above_count, PARTICLE, rank_above, 3,
+                     ghost_from_below.data(), ghost_from_below_count, PARTICLE, rank_below, 2,
                      MPI_COMM_WORLD, MPI_STATUS_IGNORE);
     }
     // Diagonal (Top Left / Top Right)
     if (ghost_to_top_left_count > 0 && rank_top_left >= 0) {
         MPI_Sendrecv(ghost_to_top_left.data(), ghost_to_top_left_count, PARTICLE, rank_top_left, 4,
-                     ghost_from_bottom_right.data(), ghost_from_bottom_right_count, PARTICLE, rank_bottom_right, 4,
+                     ghost_from_top_left.data(), ghost_from_top_left_count, PARTICLE, rank_top_left, 5,
                      MPI_COMM_WORLD, MPI_STATUS_IGNORE);
     }
     if (ghost_to_top_right_count > 0 && rank_top_right >= 0) {
         MPI_Sendrecv(ghost_to_top_right.data(), ghost_to_top_right_count, PARTICLE, rank_top_right, 5,
-                     ghost_from_bottom_left.data(), ghost_from_bottom_left_count, PARTICLE, rank_bottom_left, 5,
+                     ghost_from_top_right.data(), ghost_from_top_right_count, PARTICLE, rank_top_right, 4,
                      MPI_COMM_WORLD, MPI_STATUS_IGNORE);
     }
     // Diagonal (Bottom Left / Top Right)
     if (ghost_to_bottom_left_count > 0 && rank_bottom_left >= 0) {
         MPI_Sendrecv(ghost_to_bottom_left.data(), ghost_to_bottom_left_count, PARTICLE, rank_bottom_left, 6,
-                     ghost_from_top_right.data(), ghost_from_top_right_count, PARTICLE, rank_top_right, 6,
+                     ghost_from_bottom_left.data(), ghost_from_bottom_left_count, PARTICLE, rank_bottom_left, 7,
                      MPI_COMM_WORLD, MPI_STATUS_IGNORE);
     }
     if (ghost_to_bottom_right_count > 0 && rank_bottom_right >= 0) {
         MPI_Sendrecv(ghost_to_bottom_right.data(), ghost_to_bottom_right_count, PARTICLE, rank_bottom_right, 7,
-                     ghost_from_top_left.data(), ghost_from_top_left_count, PARTICLE, rank_top_left, 7,
+                     ghost_from_bottom_right.data(), ghost_from_bottom_right_count, PARTICLE, rank_bottom_right, 6,
                      MPI_COMM_WORLD, MPI_STATUS_IGNORE);
     }
-    
-
-    // Wait for all sends/receives to complete
     MPI_Waitall(req_index, particle_requests, MPI_STATUSES_IGNORE);
-        // ============================= Compute Local Forces ============================= //
 
+    // -------------------------- Compute Local Forces --------------------------
+    // Compute forces among local particles using spatial partitioning.
     compute_local_forces(local_parts);
-    for (int i=0; i<local_parts.size(); i++) {
-    
-        // Apply forces from ghost particles coming from each direction.
+    // Add ghost force contributions
+    for (int i = 0; i < local_parts.size(); i++) {
         for (particle_t &ghost : ghost_from_above) {
             apply_force(local_parts[i], ghost);
         }
@@ -395,12 +372,12 @@ void simulate_one_step(particle_t* parts, int num_parts, double size, int rank, 
         }
     }
 
-    // ============================== MOVE PARTICLES ============================== //
+    // -------------------------- Move Local Particles --------------------------
     for (size_t i = 0; i < local_parts.size(); i++) {
         move(local_parts[i], size);
     }
-// ============================== PARTICLE EXCHANGE ACROSS RANKS ================================= //
 
+    // -------------------------- Particle Migration Across Ranks --------------------------
     std::vector<particle_t> particles_to_left;
     std::vector<particle_t> particles_to_right;
     std::vector<particle_t> particles_to_above;
@@ -409,7 +386,7 @@ void simulate_one_step(particle_t* parts, int num_parts, double size, int rank, 
     std::vector<particle_t> particles_to_top_right;
     std::vector<particle_t> particles_to_bottom_left;
     std::vector<particle_t> particles_to_bottom_right;
-    
+
     for (size_t i = 0; i < local_parts.size(); ) {
         particle_t& p = local_parts[i];
         bool migrated = false;
@@ -436,149 +413,137 @@ void simulate_one_step(particle_t* parts, int num_parts, double size, int rank, 
         }
     }
     
-    int particles_to_left_count = particles_to_left.size();
-    int particles_to_right_count = particles_to_right.size();
-    int particles_to_above_count = particles_to_above.size();
-    int particles_to_below_count = particles_to_below.size();
-    int particles_to_top_left_count = particles_to_top_left.size();
-    int particles_to_top_right_count = particles_to_top_right.size();
+    int particles_to_left_count    = particles_to_left.size();
+    int particles_to_right_count   = particles_to_right.size();
+    int particles_to_above_count   = particles_to_above.size();
+    int particles_to_below_count   = particles_to_below.size();
+    int particles_to_top_left_count    = particles_to_top_left.size();
+    int particles_to_top_right_count   = particles_to_top_right.size();
     int particles_to_bottom_left_count = particles_to_bottom_left.size();
-    int particles_to_bottom_right_count = particles_to_bottom_right.size();
+    int particles_to_bottom_right_count= particles_to_bottom_right.size();
     
-    int particles_from_left_count = 0, particles_from_right_count = 0;
-    int particles_from_above_count = 0, particles_from_below_count = 0;
-    int particles_from_top_left_count = 0, particles_from_top_right_count = 0;
+    int particles_from_left_count    = 0, particles_from_right_count = 0;
+    int particles_from_above_count   = 0, particles_from_below_count = 0;
+    int particles_from_top_left_count    = 0, particles_from_top_right_count = 0;
     int particles_from_bottom_left_count = 0, particles_from_bottom_right_count = 0;
     
-
-// Reset request count
-req_index = 0;
-MPI_Request migration_requests[16];
-for (int i = 0; i < 16; i++) {
-    migration_requests[i] = MPI_REQUEST_NULL;
+    req_index = 0;
+    MPI_Request migration_requests[16];
+    for (int i = 0; i < 16; i++) {
+        migration_requests[i] = MPI_REQUEST_NULL;
+    }
+    int migration_req_index = 0;
+    
+    // -------------------------- SEND / RECEIVE PARTICLE COUNTS --------------------------
+    if (rank_left >= 0) {
+        MPI_Sendrecv(&particles_to_left_count, 1, MPI_INT, rank_left, 8,
+                     &particles_from_right_count, 1, MPI_INT, rank_right, 8,
+                     MPI_COMM_WORLD, MPI_STATUS_IGNORE);
+    }
+    if (rank_right >= 0) {
+        MPI_Sendrecv(&particles_to_right_count, 1, MPI_INT, rank_right, 9,
+                     &particles_from_left_count, 1, MPI_INT, rank_left, 9,
+                     MPI_COMM_WORLD, MPI_STATUS_IGNORE);
+    }
+    if (rank_above >= 0) {
+        MPI_Sendrecv(&particles_to_above_count, 1, MPI_INT, rank_above, 10,
+                     &particles_from_below_count, 1, MPI_INT, rank_below, 10,
+                     MPI_COMM_WORLD, MPI_STATUS_IGNORE);
+    }
+    if (rank_below >= 0) {
+        MPI_Sendrecv(&particles_to_below_count, 1, MPI_INT, rank_below, 11,
+                     &particles_from_above_count, 1, MPI_INT, rank_above, 11,
+                     MPI_COMM_WORLD, MPI_STATUS_IGNORE);
+    }
+    if (rank_top_left >= 0) {
+        MPI_Sendrecv(&particles_to_top_left_count, 1, MPI_INT, rank_top_left, 12,
+                     &particles_from_bottom_right_count, 1, MPI_INT, rank_bottom_right, 12,
+                     MPI_COMM_WORLD, MPI_STATUS_IGNORE);
+    }
+    if (rank_top_right >= 0) {
+        MPI_Sendrecv(&particles_to_top_right_count, 1, MPI_INT, rank_top_right, 13,
+                     &particles_from_bottom_left_count, 1, MPI_INT, rank_bottom_left, 13,
+                     MPI_COMM_WORLD, MPI_STATUS_IGNORE);
+    }
+    if (rank_bottom_left >= 0) {
+        MPI_Sendrecv(&particles_to_bottom_left_count, 1, MPI_INT, rank_bottom_left, 14,
+                     &particles_from_top_right_count, 1, MPI_INT, rank_top_right, 14,
+                     MPI_COMM_WORLD, MPI_STATUS_IGNORE);
+    }
+    if (rank_bottom_right >= 0) {
+        MPI_Sendrecv(&particles_to_bottom_right_count, 1, MPI_INT, rank_bottom_right, 15,
+                     &particles_from_top_left_count, 1, MPI_INT, rank_top_left, 15,
+                     MPI_COMM_WORLD, MPI_STATUS_IGNORE);
+    }
+    
+    MPI_Waitall(migration_req_index, migration_requests, MPI_STATUSES_IGNORE);
+    
+    // Resize vectors for receiving particles
+    std::vector<particle_t> particles_from_left_vec(particles_from_left_count);
+    std::vector<particle_t> particles_from_right_vec(particles_from_right_count);
+    std::vector<particle_t> particles_from_above_vec(particles_from_above_count);
+    std::vector<particle_t> particles_from_below_vec(particles_from_below_count);
+    std::vector<particle_t> particles_from_top_left_vec(particles_from_top_left_count);
+    std::vector<particle_t> particles_from_top_right_vec(particles_from_top_right_count);
+    std::vector<particle_t> particles_from_bottom_left_vec(particles_from_bottom_left_count);
+    std::vector<particle_t> particles_from_bottom_right_vec(particles_from_bottom_right_count);
+    
+    migration_req_index = 0;
+    if (particles_to_left_count > 0 && rank_left >= 0 && particles_from_right_count > 0 && rank_right >= 0) {
+        MPI_Sendrecv(particles_to_left.data(), particles_to_left_count, PARTICLE, rank_left, 16,
+                     particles_from_right_vec.data(), particles_from_right_count, PARTICLE, rank_right, 16,
+                     MPI_COMM_WORLD, MPI_STATUS_IGNORE);
+    }
+    if (particles_to_right_count > 0 && rank_right >= 0 && particles_from_left_count > 0 && rank_left >= 0) {
+        MPI_Sendrecv(particles_to_right.data(), particles_to_right_count, PARTICLE, rank_right, 17,
+                     particles_from_left_vec.data(), particles_from_left_count, PARTICLE, rank_left, 17,
+                     MPI_COMM_WORLD, MPI_STATUS_IGNORE);
+    }
+    if (particles_to_above_count > 0 && rank_above >= 0 && particles_from_below_count > 0 && rank_below >= 0) {
+        MPI_Sendrecv(particles_to_above.data(), particles_to_above_count, PARTICLE, rank_above, 18,
+                     particles_from_below_vec.data(), particles_from_below_count, PARTICLE, rank_below, 18,
+                     MPI_COMM_WORLD, MPI_STATUS_IGNORE);
+    }
+    if (particles_to_below_count > 0 && rank_below >= 0 && particles_from_above_count > 0 && rank_above >= 0) {
+        MPI_Sendrecv(particles_to_below.data(), particles_to_below_count, PARTICLE, rank_below, 19,
+                     particles_from_above_vec.data(), particles_from_above_count, PARTICLE, rank_above, 19,
+                     MPI_COMM_WORLD, MPI_STATUS_IGNORE);
+    }
+    if (particles_to_top_left_count > 0 && rank_top_left >= 0 && particles_from_bottom_right_count > 0 && rank_bottom_right >= 0) {
+        MPI_Sendrecv(particles_to_top_left.data(), particles_to_top_left_count, PARTICLE, rank_top_left, 20,
+                     particles_from_bottom_right_vec.data(), particles_from_bottom_right_count, PARTICLE, rank_bottom_right, 20,
+                     MPI_COMM_WORLD, MPI_STATUS_IGNORE);
+    }
+    if (particles_to_top_right_count > 0 && rank_top_right >= 0 && particles_from_bottom_left_count > 0 && rank_bottom_left >= 0) {
+        MPI_Sendrecv(particles_to_top_right.data(), particles_to_top_right_count, PARTICLE, rank_top_right, 21,
+                     particles_from_bottom_left_vec.data(), particles_from_bottom_left_count, PARTICLE, rank_bottom_left, 21,
+                     MPI_COMM_WORLD, MPI_STATUS_IGNORE);
+    }
+    if (particles_to_bottom_left_count > 0 && rank_bottom_left >= 0 && particles_from_top_right_count > 0 && rank_top_right >= 0) {
+        MPI_Sendrecv(particles_to_bottom_left.data(), particles_to_bottom_left_count, PARTICLE, rank_bottom_left, 22,
+                     particles_from_top_right_vec.data(), particles_from_top_right_count, PARTICLE, rank_top_right, 22,
+                     MPI_COMM_WORLD, MPI_STATUS_IGNORE);
+    }
+    if (particles_to_bottom_right_count > 0 && rank_bottom_right >= 0 && particles_from_top_left_count > 0 && rank_top_left >= 0) {
+        MPI_Sendrecv(particles_to_bottom_right.data(), particles_to_bottom_right_count, PARTICLE, rank_bottom_right, 23,
+                     particles_from_top_left_vec.data(), particles_from_top_left_count, PARTICLE, rank_top_left, 23,
+                     MPI_COMM_WORLD, MPI_STATUS_IGNORE);
+    }
+    
+    MPI_Waitall(migration_req_index, migration_requests, MPI_STATUSES_IGNORE);
+    
+    // Insert received particles into local_parts
+    local_parts.insert(local_parts.end(), particles_from_left_vec.begin(), particles_from_left_vec.end());
+    local_parts.insert(local_parts.end(), particles_from_right_vec.begin(), particles_from_right_vec.end());
+    local_parts.insert(local_parts.end(), particles_from_above_vec.begin(), particles_from_above_vec.end());
+    local_parts.insert(local_parts.end(), particles_from_below_vec.begin(), particles_from_below_vec.end());
+    local_parts.insert(local_parts.end(), particles_from_top_left_vec.begin(), particles_from_top_left_vec.end());
+    local_parts.insert(local_parts.end(), particles_from_top_right_vec.begin(), particles_from_top_right_vec.end());
+    local_parts.insert(local_parts.end(), particles_from_bottom_left_vec.begin(), particles_from_bottom_left_vec.end());
+    local_parts.insert(local_parts.end(), particles_from_bottom_right_vec.begin(), particles_from_bottom_right_vec.end());
+    
+    MPI_Barrier(MPI_COMM_WORLD);
 }
-int migration_req_index = 0;
-
-// ============================== SEND / RECEIVE PARTICLE COUNTS ================================= //
-
-if (rank_left >= 0) {
-    MPI_Sendrecv(&particles_to_left_count, 1, MPI_INT, rank_left, 8,
-                 &particles_from_right_count, 1, MPI_INT, rank_right, 8,
-                 MPI_COMM_WORLD, MPI_STATUS_IGNORE);
-}
-if (rank_right >= 0) {
-    MPI_Sendrecv(&particles_to_right_count, 1, MPI_INT, rank_right, 9,
-                 &particles_from_left_count, 1, MPI_INT, rank_left, 9,
-                 MPI_COMM_WORLD, MPI_STATUS_IGNORE);
-}
-if (rank_above >= 0) {
-    MPI_Sendrecv(&particles_to_above_count, 1, MPI_INT, rank_above, 10,
-                 &particles_from_below_count, 1, MPI_INT, rank_below, 10,
-                 MPI_COMM_WORLD, MPI_STATUS_IGNORE);
-}
-if (rank_below >= 0) {
-    MPI_Sendrecv(&particles_to_below_count, 1, MPI_INT, rank_below, 11,
-                 &particles_from_above_count, 1, MPI_INT, rank_above, 11,
-                 MPI_COMM_WORLD, MPI_STATUS_IGNORE);
-}
-if (rank_top_left >= 0) {
-    MPI_Sendrecv(&particles_to_top_left_count, 1, MPI_INT, rank_top_left, 12,
-                 &particles_from_bottom_right_count, 1, MPI_INT, rank_bottom_right, 12,
-                 MPI_COMM_WORLD, MPI_STATUS_IGNORE);
-}
-if (rank_top_right >= 0) {
-    MPI_Sendrecv(&particles_to_top_right_count, 1, MPI_INT, rank_top_right, 13,
-                 &particles_from_bottom_left_count, 1, MPI_INT, rank_bottom_left, 13,
-                 MPI_COMM_WORLD, MPI_STATUS_IGNORE);
-}
-if (rank_bottom_left >= 0) {
-    MPI_Sendrecv(&particles_to_bottom_left_count, 1, MPI_INT, rank_bottom_left, 14,
-                 &particles_from_top_right_count, 1, MPI_INT, rank_top_right, 14,
-                 MPI_COMM_WORLD, MPI_STATUS_IGNORE);
-}
-if (rank_bottom_right >= 0) {
-    MPI_Sendrecv(&particles_to_bottom_right_count, 1, MPI_INT, rank_bottom_right, 15,
-                 &particles_from_top_left_count, 1, MPI_INT, rank_top_left, 15,
-                 MPI_COMM_WORLD, MPI_STATUS_IGNORE);
-}
-
-
-// Wait for the counts to be exchanged before proceeding
-MPI_Waitall(req_index, particle_requests, MPI_STATUSES_IGNORE);
-
-// Resize vectors for receiving particles
-
-std::vector<particle_t> particles_from_left_vec(particles_from_left_count);
-std::vector<particle_t> particles_from_right_vec(particles_from_right_count);
-std::vector<particle_t> particles_from_above_vec(particles_from_above_count);
-std::vector<particle_t> particles_from_below_vec(particles_from_below_count);
-std::vector<particle_t> particles_from_top_left_vec(particles_from_top_left_count);
-std::vector<particle_t> particles_from_top_right_vec(particles_from_top_right_count);
-std::vector<particle_t> particles_from_bottom_left_vec(particles_from_bottom_left_count);
-std::vector<particle_t> particles_from_bottom_right_vec(particles_from_bottom_right_count);
-migration_req_index = 0;
-
-// ============================== SEND / RECEIVE PARTICLE DATA ================================= //
-
-// Send and receive actual particle data
-if (particles_to_left_count > 0 && rank_left >= 0 && particles_from_right_count > 0 && rank_right >= 0) {
-    MPI_Sendrecv(particles_to_left.data(), particles_to_left_count, PARTICLE, rank_left, 16,
-                 particles_from_right_vec.data(), particles_from_right_count, PARTICLE, rank_right, 16,
-                 MPI_COMM_WORLD, MPI_STATUS_IGNORE);
-}
-if (particles_to_right_count > 0 && rank_right >= 0 && particles_from_left_count > 0 && rank_left >= 0) {
-    MPI_Sendrecv(particles_to_right.data(), particles_to_right_count, PARTICLE, rank_right, 17,
-                 particles_from_left_vec.data(), particles_from_left_count, PARTICLE, rank_left, 17,
-                 MPI_COMM_WORLD, MPI_STATUS_IGNORE);
-}
-if (particles_to_above_count > 0 && rank_above >= 0 && particles_from_below_count > 0 && rank_below >= 0) {
-    MPI_Sendrecv(particles_to_above.data(), particles_to_above_count, PARTICLE, rank_above, 18,
-                 particles_from_below_vec.data(), particles_from_below_count, PARTICLE, rank_below, 18,
-                 MPI_COMM_WORLD, MPI_STATUS_IGNORE);
-}
-if (particles_to_below_count > 0 && rank_below >= 0 && particles_from_above_count > 0 && rank_above >= 0) {
-    MPI_Sendrecv(particles_to_below.data(), particles_to_below_count, PARTICLE, rank_below, 19,
-                 particles_from_above_vec.data(), particles_from_above_count, PARTICLE, rank_above, 19,
-                 MPI_COMM_WORLD, MPI_STATUS_IGNORE);
-}
-if (particles_to_top_left_count > 0 && rank_top_left >= 0 && particles_from_bottom_right_count > 0 && rank_bottom_right >= 0) {
-    MPI_Sendrecv(particles_to_top_left.data(), particles_to_top_left_count, PARTICLE, rank_top_left, 20,
-                 particles_from_bottom_right_vec.data(), particles_from_bottom_right_count, PARTICLE, rank_bottom_right, 20,
-                 MPI_COMM_WORLD, MPI_STATUS_IGNORE);
-}
-if (particles_to_top_right_count > 0 && rank_top_right >= 0 && particles_from_bottom_left_count > 0 && rank_bottom_left >= 0) {
-    MPI_Sendrecv(particles_to_top_right.data(), particles_to_top_right_count, PARTICLE, rank_top_right, 21,
-                 particles_from_bottom_left_vec.data(), particles_from_bottom_left_count, PARTICLE, rank_bottom_left, 21,
-                 MPI_COMM_WORLD, MPI_STATUS_IGNORE);
-}
-if (particles_to_bottom_left_count > 0 && rank_bottom_left >= 0 && particles_from_top_right_count > 0 && rank_top_right >= 0) {
-    MPI_Sendrecv(particles_to_bottom_left.data(), particles_to_bottom_left_count, PARTICLE, rank_bottom_left, 22,
-                 particles_from_top_right_vec.data(), particles_from_top_right_count, PARTICLE, rank_top_right, 22,
-                 MPI_COMM_WORLD, MPI_STATUS_IGNORE);
-}
-if (particles_to_bottom_right_count > 0 && rank_bottom_right >= 0 && particles_from_top_left_count > 0 && rank_top_left >= 0) {
-    MPI_Sendrecv(particles_to_bottom_right.data(), particles_to_bottom_right_count, PARTICLE, rank_bottom_right, 23,
-                 particles_from_top_left_vec.data(), particles_from_top_left_count, PARTICLE, rank_top_left, 23,
-                 MPI_COMM_WORLD, MPI_STATUS_IGNORE);
-}
-
-// Wait for all particle transfers to complete
-MPI_Waitall(migration_req_index, migration_requests, MPI_STATUSES_IGNORE);
-
-// ============================== INSERT RECEIVED PARTICLES ================================= //
-local_parts.insert(local_parts.end(), particles_from_left_vec.begin(), particles_from_left_vec.end());
-local_parts.insert(local_parts.end(), particles_from_right_vec.begin(), particles_from_right_vec.end());
-local_parts.insert(local_parts.end(), particles_from_above_vec.begin(), particles_from_above_vec.end());
-local_parts.insert(local_parts.end(), particles_from_below_vec.begin(), particles_from_below_vec.end());
-local_parts.insert(local_parts.end(), particles_from_top_left_vec.begin(), particles_from_top_left_vec.end());
-local_parts.insert(local_parts.end(), particles_from_top_right_vec.begin(), particles_from_top_right_vec.end());
-local_parts.insert(local_parts.end(), particles_from_bottom_left_vec.begin(), particles_from_bottom_left_vec.end());
-local_parts.insert(local_parts.end(), particles_from_bottom_right_vec.begin(), particles_from_bottom_right_vec.end());
-
-
-MPI_Barrier(MPI_COMM_WORLD);
-}
-
 }
 }
 
