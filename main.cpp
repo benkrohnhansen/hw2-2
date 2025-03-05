@@ -154,12 +154,23 @@ int main(int argc, char** argv) {
 
     init_simulation(parts, num_parts, size, rank, num_procs);
 
+    double ghost_calc; double time_ghost_cnt_comm; double ghost_cnt_waitall; 
+    double ghost_comm; double ghost_waitall; double force_calc; double move; 
+    double calc_particle_mv; double part_cnt_waitall; double part_cnt; 
+    double part_waitall; double part; double part_insert; double end_barrier;
+
+    double sort_time; double gather_time;
+
     for (int step = 0; step < nsteps; ++step) {
-        simulate_one_step(parts, num_parts, size, rank, num_procs);
+        simulate_one_step(parts, num_parts, size, rank, num_procs,
+            ghost_calc, time_ghost_cnt_comm, ghost_cnt_waitall, 
+            ghost_comm, ghost_waitall, force_calc, move, 
+            calc_particle_mv, part_cnt_waitall, part_cnt, 
+            part_waitall, part, part_insert, end_barrier);
 
         // Save state if necessary
         if (fsave.good() && (step % savefreq) == 0) {
-            gather_for_save(parts, num_parts, size, rank, num_procs);
+            gather_for_save(parts, num_parts, size, rank, num_procs, sort_time, gather_time);
             if (rank == 0) {
                 save(fsave, parts, num_parts, size);
             }
@@ -174,7 +185,25 @@ int main(int argc, char** argv) {
     // Finalize
     if (rank == 0) {
         std::cout << "Simulation Time = " << seconds << " seconds for " << num_parts
-                  << " particles.\n";
+                  << " particles.\n\n";
+        std::cout << "==== Simulation Timing Breakdown ====" << std::endl;
+        std::cout << "Ghost Particle Calculation Time: " << ghost_calc << " seconds" << std::endl;
+        std::cout << "Ghost Particle Count Comm Time: " << time_ghost_cnt_comm << " seconds" << std::endl;
+        std::cout << "Ghost Count Waitall Time: " << ghost_cnt_waitall << " seconds" << std::endl;
+        std::cout << "Ghost Particle Comm Time: " << ghost_comm << " seconds" << std::endl;
+        std::cout << "Ghost Waitall Time: " << ghost_waitall << " seconds" << std::endl;
+        std::cout << "Force Calculation Time: " << force_calc << " seconds" << std::endl;
+        std::cout << "Particle Move Time: " << move << " seconds" << std::endl;
+        std::cout << "Calculate Particle Movement Time: " << calc_particle_mv << " seconds" << std::endl;
+        std::cout << "Particle Count Waitall Time: " << part_cnt_waitall << " seconds" << std::endl;
+        std::cout << "Particle Count Time: " << part_cnt << " seconds" << std::endl;
+        std::cout << "Particle Waitall Time: " << part_waitall << " seconds" << std::endl;
+        std::cout << "Particle Exchange Time: " << part << " seconds" << std::endl;
+        std::cout << "Particle Insert Time: " << part_insert << " seconds" << std::endl;
+        std::cout << "End Barrier Time: " << end_barrier << " seconds" << std::endl;
+        std::cout << "Sorting Time: " << sort_t << " seconds" << std::endl;
+        std::cout << "Gathering Time: " << gather_t << " seconds" << std::endl;
+        std::cout << "=====================================" << std::endl;
     }
     if (fsave) {
         fsave.close();
