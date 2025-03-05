@@ -366,7 +366,7 @@ void simulate_one_step(particle_t* parts, int num_parts, double size, int rank, 
         // ============================= Compute Local Forces ============================= //
 
     compute_local_forces(local_parts);
-    for (int i=0; i<local_parts.size(), i++) {
+    for (int i=0; i<local_parts.size(); i++) {
     
         // Apply forces from ghost particles coming from each direction.
         for (particle_t &ghost : ghost_from_above) {
