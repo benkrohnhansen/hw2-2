@@ -271,7 +271,7 @@ void simulate_one_step(particle_t* parts, int num_parts, double size, int rank, 
     double part_insert_start = MPI_Wtime();
     local_parts.insert(local_parts.end(), particles_from_above.begin(), particles_from_above.end());
     local_parts.insert(local_parts.end(), particles_from_below.begin(), particles_from_below.end());
-    part_insert = MPI_Wtime() = part_insert_start;
+    part_insert = MPI_Wtime() - part_insert_start;
 
     double end_barrier_start = MPI_Wtime();
     MPI_Barrier(MPI_COMM_WORLD);
