@@ -184,7 +184,7 @@ int main(int argc, char** argv) {
 
     // Finalize
     if (rank == 0) {
-        std::cout << "Total Simulation Time = " << seconds << " seconds\n\n";d
+        std::cout << "Total Simulation Time = " << seconds << " seconds\n\n";
         // std::cout << "Ghost Particle Calculation Time: " << ghost_calc << " seconds" << std::endl;
         // std::cout << "Ghost Particle Count Comm Time: " << time_ghost_cnt_comm << " seconds" << std::endl;
         // std::cout << "Ghost Count Waitall Time: " << ghost_cnt_waitall << " seconds" << std::endl;
