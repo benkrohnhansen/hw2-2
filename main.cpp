@@ -184,26 +184,44 @@ int main(int argc, char** argv) {
 
     // Finalize
     if (rank == 0) {
-        std::cout << "Simulation Time = " << seconds << " seconds for " << num_parts
-                  << " particles.\n\n";
-        std::cout << "==== Simulation Timing Breakdown ====" << std::endl;
-        std::cout << "Ghost Particle Calculation Time: " << ghost_calc << " seconds" << std::endl;
-        std::cout << "Ghost Particle Count Comm Time: " << time_ghost_cnt_comm << " seconds" << std::endl;
-        std::cout << "Ghost Count Waitall Time: " << ghost_cnt_waitall << " seconds" << std::endl;
-        std::cout << "Ghost Particle Comm Time: " << ghost_comm << " seconds" << std::endl;
-        std::cout << "Ghost Waitall Time: " << ghost_waitall << " seconds" << std::endl;
-        std::cout << "Force Calculation Time: " << force_calc << " seconds" << std::endl;
-        std::cout << "Particle Move Time: " << move_time << " seconds" << std::endl;
-        std::cout << "Calculate Particle Movement Time: " << calc_particle_mv << " seconds" << std::endl;
-        std::cout << "Particle Count Waitall Time: " << part_cnt_waitall << " seconds" << std::endl;
-        std::cout << "Particle Count Time: " << part_cnt << " seconds" << std::endl;
-        std::cout << "Particle Waitall Time: " << part_waitall << " seconds" << std::endl;
-        std::cout << "Particle Exchange Time: " << part << " seconds" << std::endl;
-        std::cout << "Particle Insert Time: " << part_insert << " seconds" << std::endl;
-        std::cout << "End Barrier Time: " << end_barrier << " seconds" << std::endl;
-        std::cout << "Gathering Time: " << gather_time << " seconds" << std::endl;
-        std::cout << "Sorting Time: " << sort_time << " seconds" << std::endl;
+        std::cout << "Total Simulation Time = " << seconds << " seconds\n\n";d
+        // std::cout << "Ghost Particle Calculation Time: " << ghost_calc << " seconds" << std::endl;
+        // std::cout << "Ghost Particle Count Comm Time: " << time_ghost_cnt_comm << " seconds" << std::endl;
+        // std::cout << "Ghost Count Waitall Time: " << ghost_cnt_waitall << " seconds" << std::endl;
+        // std::cout << "Ghost Particle Comm Time: " << ghost_comm << " seconds" << std::endl;
+        // std::cout << "Ghost Waitall Time: " << ghost_waitall << " seconds" << std::endl;
+        // std::cout << "Force Calculation Time: " << force_calc << " seconds" << std::endl;
+        // std::cout << "Particle Move Time: " << move_time << " seconds" << std::endl;
+        // std::cout << "Calculate Particle Movement Time: " << calc_particle_mv << " seconds" << std::endl;
+        // std::cout << "Particle Count Waitall Time: " << part_cnt_waitall << " seconds" << std::endl;
+        // std::cout << "Particle Count Time: " << part_cnt << " seconds" << std::endl;
+        // std::cout << "Particle Waitall Time: " << part_waitall << " seconds" << std::endl;
+        // std::cout << "Particle Exchange Time: " << part << " seconds" << std::endl;
+        // std::cout << "Particle Insert Time: " << part_insert << " seconds" << std::endl;
+        // std::cout << "End Barrier Time: " << end_barrier << " seconds" << std::endl;
+        // std::cout << "Gathering Time: " << gather_time << " seconds" << std::endl;
+        // std::cout << "Sorting Time: " << sort_time << " seconds" << std::endl;
         std::cout << "=====================================" << std::endl;
+        std::cout << "Breakdown\n";
+
+        double comm_time = (time_ghost_cnt_comm - ghost_cnt_waitall) + (ghost_comm - ghost_waitall) 
+                    + (part_cnt - part_cnt_waitall) + (part - part_waitall);
+        double synch_time = part_cnt_waitall + ghost_waitall + part_waitall + end_barrier;
+        double force_calc_time = force_calc;
+
+        double other = seconds - (comm_time + synch_time + force_calc_time);
+        
+        std::cout << "\n==== Simulation Summary ====\n";
+        std::cout << "Processors: " << num_procs << " | Rank: " << rank << " | Particles: " << num_parts << "\n\n";
+        
+        std::cout << "| Time Category     | Value (s)          |\n";
+        std::cout << "|------------------|-------------------|\n";
+        std::cout << "| Communication    | " << comm_time << " |\n";
+        std::cout << "| Synchronization  | " << synch_time << " |\n";
+        std::cout << "| Force Calculation | " << force_calc_time << " |\n";
+        std::cout << "| Other            | " << other << " |\n";
+        std::cout << "=========================================\n";
+
     }
     if (fsave) {
         fsave.close();
