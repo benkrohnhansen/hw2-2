@@ -174,9 +174,9 @@ int main(int argc, char** argv) {
     double seconds = diff.count();
 
     // Finalize
-    if (rank == 0) {
+    if (rank == 1) {
         std::cout << "\nProcessors " << num_procs <<
-                     "\nParticles " << size << 
+                     "\nParticles " << num_parts << 
                      "\nComm time " << comm_time <<
                      "\nForce calc time " << force_calc_time <<
                      "\nTotal time " << seconds << std::endl;
