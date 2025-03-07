@@ -96,10 +96,15 @@ void init_simulation(particle_t* parts, int num_parts, double size, int rank, in
 
 void simulate_one_step(particle_t* parts, int num_parts, double size, int rank, int num_procs) {
     // ============================== MOVE PARTICLES ================================= //
-    std::vector<double> ghost_to_above;
-    std::vector<double> ghost_to_below;
-    std::vector<double> ghost_from_above;
-    std::vector<double> ghost_from_below;
+    // std::vector<double> ghost_to_above;
+    // std::vector<double> ghost_to_below;
+    // std::vector<double> ghost_from_above;
+    // std::vector<double> ghost_from_below;
+
+    std::vector<particle_t> ghost_to_above;
+    std::vector<particle_t> ghost_to_below;
+    std::vector<particle_t> ghost_from_above;
+    std::vector<particle_t> ghost_from_below;
 
     // Define rank above and below
     int rank_above = (rank + 1 < num_procs) ? rank + 1 : -1;
