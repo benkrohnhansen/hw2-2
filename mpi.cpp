@@ -79,6 +79,12 @@ double upper_bound;
 
 std::vector<particle_t> local_parts;
 
+int num_tiles_x;
+int num_tiles_y;
+
+double len_tiles_x;
+double len_tiles_y;
+
 void init_simulation(particle_t* parts, int num_parts, double size, int rank, int num_procs) {
     double row_height = size / num_procs;
     lower_bound = rank * row_height;
@@ -91,6 +97,17 @@ void init_simulation(particle_t* parts, int num_parts, double size, int rank, in
             local_parts.push_back(parts[i]);
         }
     }
+
+    num_tiles_x = std::floor(size / cutoff);
+    num_tiles_y = std::floor(row_height/ cutoff);
+    
+    len_tiles_x = size / num_tiles_x;
+    len_tiles_y = row_height/ num_tiles_y;
+
+    tiles.resize(num_tiles_x * num_tiles_y);
+    ghost_from_above_tiles.resize(num_tiles_x);
+    ghost_from_below_tiles.resize(num_tiles_x);
+
     MPI_Barrier(MPI_COMM_WORLD);
 }
 
@@ -218,12 +235,6 @@ void simulate_one_step(particle_t* parts, int num_parts, double size, int rank, 
                                     //         apply_force(local_parts[i], ghost_from_below[jj], ghost_from_below[jj + 1]);
                                     //     }
                                     // }
-                                    
-    int num_tiles_x = std::floor(size / cutoff);
-    int num_tiles_y = std::floor((upper_bound - lower_bound) / cutoff);
-    
-    double len_tiles_x = size / num_tiles_x;
-    double len_tiles_y = (upper_bound - lower_bound) / num_tiles_y;
 
     for (auto& cell : tiles) {
         cell.clear();
@@ -237,24 +248,23 @@ void simulate_one_step(particle_t* parts, int num_parts, double size, int rank, 
         cell.clear();
     }
     
-    tiles.resize(num_tiles_x * num_tiles_y);
-    ghost_from_above_tiles.resize(num_tiles_x);
-    ghost_from_below_tiles.resize(num_tiles_x);
-    
     for (int i = 0; i < local_parts.size(); i++) {
         int x = static_cast<int>(local_parts[i].x / len_tiles_x);
         int y = static_cast<int>((local_parts[i].y - lower_bound) / len_tiles_y);
         tiles[x + y * num_tiles_x].push_back(parts[i]);
+        std::cout << "In local parts" << std::endl;
     }
 
     for (int i = 0; i < ghost_from_above_count; i++) {
         int x = static_cast<int>(ghost_from_above[i].x / len_tiles_x);
         ghost_from_above_tiles[x].push_back(ghost_from_above[i]);
+        std::cout << "In ghost above" << std::endl;
     }
     
     for (int i = 0; i < ghost_from_below_count; i++) {
         int x = static_cast<int>(ghost_from_below[i].x / len_tiles_x);
         ghost_from_below_tiles[x].push_back(ghost_from_below[i]);
+        std::cout << "In ghost below" << std::endl;
     }
 
     // Iterate through each particle
