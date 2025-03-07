@@ -225,14 +225,21 @@ void simulate_one_step(particle_t* parts, int num_parts, double size, int rank, 
     double len_tiles_x = size / num_tiles_x;
     double len_tiles_y = size / num_tiles_y;
 
-    tiles.resize(num_tiles_x * num_tiles_y);
-    ghost_from_above_tiles.resize(num_tiles_x);
-    ghost_from_below_tiles.resize(num_tiles_x);
-
-
     for (auto& cell : tiles) {
         cell.clear();
     }
+
+    for (auto& cell : ghost_from_above_tiles) {
+        cell.clear();
+    }
+
+    for (auto& cell : ghost_from_below_tiles) {
+        cell.clear();
+    }
+    
+    tiles.resize(num_tiles_x * num_tiles_y);
+    ghost_from_above_tiles.resize(num_tiles_x);
+    ghost_from_below_tiles.resize(num_tiles_x);
     
     for (int i = 0; i < local_parts.size(); i++) {
         int x = static_cast<int>(local_parts[i].x / len_tiles_x);
