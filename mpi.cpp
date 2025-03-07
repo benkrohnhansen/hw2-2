@@ -223,7 +223,7 @@ void simulate_one_step(particle_t* parts, int num_parts, double size, int rank, 
     int num_tiles_y = std::floor((upper_bound - lower_bound) / cutoff);
     
     double len_tiles_x = size / num_tiles_x;
-    double len_tiles_y = size / num_tiles_y;
+    double len_tiles_y = (upper_bound - lower_bound) / num_tiles_y;
 
     for (auto& cell : tiles) {
         cell.clear();
