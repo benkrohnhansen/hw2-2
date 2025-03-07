@@ -176,6 +176,49 @@ void simulate_one_step(particle_t* parts, int num_parts, double size, int rank, 
     // std::vector<std::vector<double>> tiled_ghost_above;
     // std::vector<std::vector<double>> tiled_ghost_below;
     
+    // for (int i = 0; i < local_parts.size(); ++i) {
+        //     int x_tile = std::floor(local_parts[i].x / len_tiles_x);
+        //     int y_tile = std::floor((local_parts[i].y + lower_bound) / len_tiles_y);
+        //     tiled_local_parts[x_tile + y_tile * num_tiles_x].push_back(&local_parts[i]);
+        // }
+        
+        // for (int i = 0; i < ghost_from_above_count; i += 2) {
+            //     int x_tile = std::floor(local_parts[i] / len_tiles_x);;
+            //     tiled_ghost_above[x_tile].push_back(ghost_from_above[i]);
+            //     tiled_ghost_above[x_tile].push_back(ghost_from_above[i + 1])
+            // }
+            
+            // for (int i = 0; i < ghost_from_below_count; i += 2) {
+                //     int x_tile = std::floor(local_parts[i] / len_tiles_x);;
+                //     tiled_ghost_below[x_tile].push_back(ghost_from_below[i]);
+                //     tiled_ghost_below[x_tile].push_back(ghost_from_below[i + 1])
+                // }
+                
+                // // ============================= Compute Forces ============================= //
+                // for (int i =  0; i < tiled_local_parts.size(); i++) {
+                    //     int up_left = i - 1 + len_tiles_x; int up = i + len_tiles_x; int up_right = i + 1 + len_tiles_x;
+                    //     int left    = i - 1;                                         int right    = i + 1;
+                    //     int dw_left = i - 1 - len_tiles_x; int dw = i - len_tiles_x; int dw_right = i + 1 - len_tiles_x;
+                    //     if (i - len_tiles_x < 0) 
+                    // }
+                    
+                    // // ============================= Compute Forces ============================= //
+                    // for (int i = 0; i < local_parts.size(); ++i) {
+                        //     local_parts[i].ax = local_parts[i].ay = 0;
+                        //     for (int j = 0; j < local_parts.size(); ++j) {
+                            //         apply_force(local_parts[i], local_parts[j]);
+                            //     }
+                            //     // Compute forces with ghost particles from above
+                            //     for (size_t jj = 0; jj < ghost_from_above.size(); jj += 2) {
+                                //         apply_force(local_parts[i], ghost_from_above[jj], ghost_from_above[jj + 1]);
+                                //     }
+                                
+                                //     // Compute forces with ghost particles from below
+                                //     for (size_t jj = 0; jj < ghost_from_below.size(); jj += 2) {
+                                    //         apply_force(local_parts[i], ghost_from_below[jj], ghost_from_below[jj + 1]);
+                                    //     }
+                                    // }
+                                    
     int num_tiles_x = std::floor(size / cutoff);
     int num_tiles_y = std::floor((upper_bound - lower_bound) / cutoff);
     
@@ -183,52 +226,10 @@ void simulate_one_step(particle_t* parts, int num_parts, double size, int rank, 
     double len_tiles_x = size / num_tiles_x;
     double len_tiles_y = size / num_tiles_y;
 
-    // tiled_local_parts.resize(num_tiles_x * num_tiles_y);
-    // tiled_ghost_above.resize(ghost_from_above_count);
-    // tiled_ghost_below.resize(ghost_from_below_count);
+    tiles.resize(num_tiles_x * num_tiles_y);
+    ghost_from_above_tiles.resize(ghost_from_above_count);
+    ghost_from_below_tiles.resize(ghost_from_below_count);
 
-    // for (int i = 0; i < local_parts.size(); ++i) {
-    //     int x_tile = std::floor(local_parts[i].x / len_tiles_x);
-    //     int y_tile = std::floor((local_parts[i].y + lower_bound) / len_tiles_y);
-    //     tiled_local_parts[x_tile + y_tile * num_tiles_x].push_back(&local_parts[i]);
-    // }
-
-    // for (int i = 0; i < ghost_from_above_count; i += 2) {
-    //     int x_tile = std::floor(local_parts[i] / len_tiles_x);;
-    //     tiled_ghost_above[x_tile].push_back(ghost_from_above[i]);
-    //     tiled_ghost_above[x_tile].push_back(ghost_from_above[i + 1])
-    // }
-    
-    // for (int i = 0; i < ghost_from_below_count; i += 2) {
-    //     int x_tile = std::floor(local_parts[i] / len_tiles_x);;
-    //     tiled_ghost_below[x_tile].push_back(ghost_from_below[i]);
-    //     tiled_ghost_below[x_tile].push_back(ghost_from_below[i + 1])
-    // }
-
-    // // ============================= Compute Forces ============================= //
-    // for (int i =  0; i < tiled_local_parts.size(); i++) {
-    //     int up_left = i - 1 + len_tiles_x; int up = i + len_tiles_x; int up_right = i + 1 + len_tiles_x;
-    //     int left    = i - 1;                                         int right    = i + 1;
-    //     int dw_left = i - 1 - len_tiles_x; int dw = i - len_tiles_x; int dw_right = i + 1 - len_tiles_x;
-    //     if (i - len_tiles_x < 0) 
-    // }
-
-    // // ============================= Compute Forces ============================= //
-    // for (int i = 0; i < local_parts.size(); ++i) {
-    //     local_parts[i].ax = local_parts[i].ay = 0;
-    //     for (int j = 0; j < local_parts.size(); ++j) {
-    //         apply_force(local_parts[i], local_parts[j]);
-    //     }
-    //     // Compute forces with ghost particles from above
-    //     for (size_t jj = 0; jj < ghost_from_above.size(); jj += 2) {
-    //         apply_force(local_parts[i], ghost_from_above[jj], ghost_from_above[jj + 1]);
-    //     }
-
-    //     // Compute forces with ghost particles from below
-    //     for (size_t jj = 0; jj < ghost_from_below.size(); jj += 2) {
-    //         apply_force(local_parts[i], ghost_from_below[jj], ghost_from_below[jj + 1]);
-    //     }
-    // }
 
     for (auto& cell : tiles) {
         cell.clear();
