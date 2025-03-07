@@ -252,19 +252,19 @@ void simulate_one_step(particle_t* parts, int num_parts, double size, int rank, 
         int x = static_cast<int>(local_parts[i].x / len_tiles_x);
         int y = static_cast<int>((local_parts[i].y - lower_bound) / len_tiles_y);
         tiles[x + y * num_tiles_x].push_back(local_parts[i]);
-        std::cout << "In local parts" << std::endl;
+        // std::cout << "In local parts" << std::endl;
     }
 
     for (int i = 0; i < ghost_from_above.size(); i++) {
         int x = static_cast<int>(ghost_from_above[i].x / len_tiles_x);
         ghost_from_above_tiles[x].push_back(ghost_from_above[i]);
-        std::cout << "In ghost above" << std::endl;
+        // std::cout << "In ghost above" << std::endl;
     }
     
     for (int i = 0; i < ghost_from_below.size(); i++) {
         int x = static_cast<int>(ghost_from_below[i].x / len_tiles_x);
         ghost_from_below_tiles[x].push_back(ghost_from_below[i]);
-        std::cout << "In ghost below" << std::endl;
+        // std::cout << "In ghost below" << std::endl;
     }
 
     // Iterate through each particle
