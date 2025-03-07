@@ -28,7 +28,7 @@ extern MPI_Datatype PARTICLE;
 
 // Simulation routine
 void init_simulation(particle_t* parts, int num_parts, double size, int rank, int num_procs);
-void simulate_one_step(particle_t* parts, int num_parts, double size, int rank, int num_procs, double& comm_time, double& force_calc_time);
+void simulate_one_step(particle_t* parts, int num_parts, double size, int rank, int num_procs, double& comm_time, double& force_calc_time, double& force_calc_binning);
 void gather_for_save(particle_t* parts, int num_parts, double size, int rank, int num_procs);
 
 #endif

@@ -111,7 +111,7 @@ void init_simulation(particle_t* parts, int num_parts, double size, int rank, in
     MPI_Barrier(MPI_COMM_WORLD);
 }
 
-void simulate_one_step(particle_t* parts, int num_parts, double size, int rank, int num_procs, double& comm_time, double& force_calc_time) {
+void simulate_one_step(particle_t* parts, int num_parts, double size, int rank, int num_procs, double& comm_time, double& force_calc_time, double& force_calc_binning) {
     // ============================== MOVE PARTICLES ================================= //
     std::vector<particle_t> ghost_to_above;
     std::vector<particle_t> ghost_to_below;
@@ -175,8 +175,9 @@ void simulate_one_step(particle_t* parts, int num_parts, double size, int rank, 
 
     comm_time += MPI_Wtime() - comm_start;
     
-    // =================== COMPUTE TILES ======================= //
 
+    // =================== COMPUTE TILES ======================= //
+    double force_calc_binning_start = MPI_Wtime();
     for (auto& cell : tiles) {
         cell.clear();
     }
@@ -207,6 +208,7 @@ void simulate_one_step(particle_t* parts, int num_parts, double size, int rank, 
         ghost_from_below_tiles[x].push_back(ghost_from_below[i]);
         // std::cout << "In ghost below" << std::endl;
     }
+    force_calc_binning += MPI_Wtime() - force_calc_binning_start; 
 
     double force_calc_start = MPI_Wtime();
 

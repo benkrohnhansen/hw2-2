@@ -154,10 +154,10 @@ int main(int argc, char** argv) {
 
     init_simulation(parts, num_parts, size, rank, num_procs);
 
-    double comm_time = 0.0, force_calc_time = 0.0;
+    double comm_time = 0.0, force_calc_time = 0.0, force_calc_binning = 0.0;
 
     for (int step = 0; step < nsteps; ++step) {
-        simulate_one_step(parts, num_parts, size, rank, num_procs, comm_time, force_calc_time);
+        simulate_one_step(parts, num_parts, size, rank, num_procs, comm_time, force_calc_time, force_calc_binning);
 
         // Save state if necessary
         if (fsave.good() && (step % savefreq) == 0) {
