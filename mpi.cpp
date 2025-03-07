@@ -222,13 +222,12 @@ void simulate_one_step(particle_t* parts, int num_parts, double size, int rank, 
     int num_tiles_x = std::floor(size / cutoff);
     int num_tiles_y = std::floor((upper_bound - lower_bound) / cutoff);
     
-
     double len_tiles_x = size / num_tiles_x;
     double len_tiles_y = size / num_tiles_y;
 
     tiles.resize(num_tiles_x * num_tiles_y);
-    ghost_from_above_tiles.resize(ghost_from_above_count);
-    ghost_from_below_tiles.resize(ghost_from_below_count);
+    ghost_from_above_tiles.resize(num_tiles_x);
+    ghost_from_below_tiles.resize(num_tiles_x);
 
 
     for (auto& cell : tiles) {
