@@ -179,7 +179,7 @@ int main(int argc, char** argv) {
                      "\nParticles " << num_parts << 
                      "\nComm time " << comm_time <<
                      "\nForce calc time " << force_calc_time <<
-                     "\nBinning time" << force_calc_binning <<
+                     "\nBinning time " << force_calc_binning <<
                      "\nTotal time " << seconds << std::endl;
     }
     if (fsave) {
