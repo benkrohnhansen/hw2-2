@@ -154,8 +154,10 @@ int main(int argc, char** argv) {
 
     init_simulation(parts, num_parts, size, rank, num_procs);
 
+    double comm_time = 0.0, force_calc_time = 0.0;
+
     for (int step = 0; step < nsteps; ++step) {
-        simulate_one_step(parts, num_parts, size, rank, num_procs);
+        simulate_one_step(parts, num_parts, size, rank, num_procs, comm_time, force_calc_time);
 
         // Save state if necessary
         if (fsave.good() && (step % savefreq) == 0) {
@@ -173,8 +175,11 @@ int main(int argc, char** argv) {
 
     // Finalize
     if (rank == 0) {
-        std::cout << "Simulation Time = " << seconds << " seconds for " << num_parts
-                  << " particles.\n";
+        std::cout << "\nProcessors " << num_procs <<
+                     "\nParticles " << size << std::endl;
+                     "\nComm time " << comm_time <<
+                     "\nForce calc time " << force_calc_time <<
+                     "\nTotal time " << seconds <<
     }
     if (fsave) {
         fsave.close();

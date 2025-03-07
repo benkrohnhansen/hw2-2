@@ -111,13 +111,8 @@ void init_simulation(particle_t* parts, int num_parts, double size, int rank, in
     MPI_Barrier(MPI_COMM_WORLD);
 }
 
-void simulate_one_step(particle_t* parts, int num_parts, double size, int rank, int num_procs) {
+void simulate_one_step(particle_t* parts, int num_parts, double size, int rank, int num_procs, double& comm_time, double& force_calc_time) {
     // ============================== MOVE PARTICLES ================================= //
-    // std::vector<double> ghost_to_above;
-    // std::vector<double> ghost_to_below;
-    // std::vector<double> ghost_from_above;
-    // std::vector<double> ghost_from_below;
-
     std::vector<particle_t> ghost_to_above;
     std::vector<particle_t> ghost_to_below;
     std::vector<particle_t> ghost_from_above;
@@ -127,17 +122,6 @@ void simulate_one_step(particle_t* parts, int num_parts, double size, int rank, 
     int rank_above = (rank + 1 < num_procs) ? rank + 1 : -1;
     int rank_below = (rank - 1 >= 0) ? rank - 1 : -1;
 
-    // Iterate over local particles to determine ghost particle counts
-    // for (size_t i = 0; i < local_parts.size(); i++) {
-    //     if (upper_bound - local_parts[i].y < cutoff) {
-    //         ghost_to_above.push_back(local_parts[i].x);
-    //         ghost_to_above.push_back(local_parts[i].y);
-    //     }
-    //     if (local_parts[i].y - lower_bound < cutoff) {
-    //         ghost_to_below.push_back(local_parts[i].x);
-    //         ghost_to_below.push_back(local_parts[i].y);
-    //     }
-    // }
 
     for (size_t i = 0; i < local_parts.size(); i++) {
         if (upper_bound - local_parts[i].y < cutoff) {
@@ -155,6 +139,7 @@ void simulate_one_step(particle_t* parts, int num_parts, double size, int rank, 
     int ghost_from_below_count = 0;
 
     // ============================== SEND / RECEIVE GHOST PARTICLE COUNTS ================================= //
+    double comm_start = MPI_Wtime();
     MPI_Request requests[4]; // Array for non-blocking communication
 
     // Non-blocking send and receive for ghost counts
@@ -187,54 +172,10 @@ void simulate_one_step(particle_t* parts, int num_parts, double size, int rank, 
 
     // Wait for all sends/receives to complete
     MPI_Waitall(4, requests, MPI_STATUSES_IGNORE);
+
+    comm_time += MPI_Wtime() - comm_start;
     
     // =================== COMPUTE TILES ======================= //
-    // std::vector<std::vector<std::vector<<&particle_t>>>> tiled_local_parts;
-    // std::vector<std::vector<double>> tiled_ghost_above;
-    // std::vector<std::vector<double>> tiled_ghost_below;
-    
-    // for (int i = 0; i < local_parts.size(); ++i) {
-        //     int x_tile = std::floor(local_parts[i].x / len_tiles_x);
-        //     int y_tile = std::floor((local_parts[i].y + lower_bound) / len_tiles_y);
-        //     tiled_local_parts[x_tile + y_tile * num_tiles_x].push_back(&local_parts[i]);
-        // }
-        
-        // for (int i = 0; i < ghost_from_above_count; i += 2) {
-            //     int x_tile = std::floor(local_parts[i] / len_tiles_x);;
-            //     tiled_ghost_above[x_tile].push_back(ghost_from_above[i]);
-            //     tiled_ghost_above[x_tile].push_back(ghost_from_above[i + 1])
-            // }
-            
-            // for (int i = 0; i < ghost_from_below_count; i += 2) {
-                //     int x_tile = std::floor(local_parts[i] / len_tiles_x);;
-                //     tiled_ghost_below[x_tile].push_back(ghost_from_below[i]);
-                //     tiled_ghost_below[x_tile].push_back(ghost_from_below[i + 1])
-                // }
-                
-                // // ============================= Compute Forces ============================= //
-                // for (int i =  0; i < tiled_local_parts.size(); i++) {
-                    //     int up_left = i - 1 + len_tiles_x; int up = i + len_tiles_x; int up_right = i + 1 + len_tiles_x;
-                    //     int left    = i - 1;                                         int right    = i + 1;
-                    //     int dw_left = i - 1 - len_tiles_x; int dw = i - len_tiles_x; int dw_right = i + 1 - len_tiles_x;
-                    //     if (i - len_tiles_x < 0) 
-                    // }
-                    
-                    // // ============================= Compute Forces ============================= //
-                    // for (int i = 0; i < local_parts.size(); ++i) {
-                        //     local_parts[i].ax = local_parts[i].ay = 0;
-                        //     for (int j = 0; j < local_parts.size(); ++j) {
-                            //         apply_force(local_parts[i], local_parts[j]);
-                            //     }
-                            //     // Compute forces with ghost particles from above
-                            //     for (size_t jj = 0; jj < ghost_from_above.size(); jj += 2) {
-                                //         apply_force(local_parts[i], ghost_from_above[jj], ghost_from_above[jj + 1]);
-                                //     }
-                                
-                                //     // Compute forces with ghost particles from below
-                                //     for (size_t jj = 0; jj < ghost_from_below.size(); jj += 2) {
-                                    //         apply_force(local_parts[i], ghost_from_below[jj], ghost_from_below[jj + 1]);
-                                    //     }
-                                    // }
 
     for (auto& cell : tiles) {
         cell.clear();
@@ -267,6 +208,8 @@ void simulate_one_step(particle_t* parts, int num_parts, double size, int rank, 
         // std::cout << "In ghost below" << std::endl;
     }
 
+    double force_calc_start = MPI_Wtime();
+
     // Iterate through each particle
     for (int i = 0; i < local_parts.size(); i++) {
         local_parts[i].ax = local_parts[i].ay = 0;
@@ -297,6 +240,8 @@ void simulate_one_step(particle_t* parts, int num_parts, double size, int rank, 
             }
         }
     }
+
+    force_calc_time += MPI_Wtime() - force_calc_start;
 
     // ============================== MOVE PARTICLES ============================== //
     for (size_t i = 0; i < local_parts.size(); i++) {
@@ -332,7 +277,7 @@ void simulate_one_step(particle_t* parts, int num_parts, double size, int rank, 
     int request_count = 0;
 
     // ============================== SEND / RECEIVE PARTICLE COUNTS ================================= //
-
+    comm_start = MPI_Wtime();
     // Send/Receive counts to/from adjacent ranks
     if (rank_above >= 0) {
         MPI_Isend(&num_particles_to_above, 1, MPI_INT, rank_above, 4, MPI_COMM_WORLD, &particle_requests[request_count++]);
@@ -371,6 +316,8 @@ void simulate_one_step(particle_t* parts, int num_parts, double size, int rank, 
 
     // Wait for all particle transfers to complete
     MPI_Waitall(request_count, particle_requests, MPI_STATUSES_IGNORE);
+
+    comm_time += MPI_Wtime() - comm_start;
 
     // ============================== INSERT RECEIVED PARTICLES ================================= //
     local_parts.insert(local_parts.end(), particles_from_above.begin(), particles_from_above.end());
