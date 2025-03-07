@@ -176,10 +176,10 @@ int main(int argc, char** argv) {
     // Finalize
     if (rank == 0) {
         std::cout << "\nProcessors " << num_procs <<
-                     "\nParticles " << size << std::endl;
+                     "\nParticles " << size << 
                      "\nComm time " << comm_time <<
                      "\nForce calc time " << force_calc_time <<
-                     "\nTotal time " << seconds <<
+                     "\nTotal time " << seconds << std::endl;
     }
     if (fsave) {
         fsave.close();
