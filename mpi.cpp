@@ -8,24 +8,8 @@
 // Put any static global variables here that you will use throughout the simulation.
 double x_lower_bound, x_upper_bound, y_lower_bound, y_upper_bound;
 int rank_x, rank_y, grid_size;
+int flag = 0;
 
-std::vector<particle_t> ghost_to_left;
-std::vector<particle_t> ghost_to_right;
-std::vector<particle_t> ghost_to_above;
-std::vector<particle_t> ghost_to_below;
-std::vector<particle_t> ghost_to_top_left;
-std::vector<particle_t> ghost_to_top_right;
-std::vector<particle_t> ghost_to_bottom_left;
-std::vector<particle_t> ghost_to_bottom_right;
-
-std::vector<particle_t> ghost_from_left;
-std::vector<particle_t> ghost_from_right;
-std::vector<particle_t> ghost_from_above;
-std::vector<particle_t> ghost_from_below;
-std::vector<particle_t> ghost_from_top_left;
-std::vector<particle_t> ghost_from_top_right;
-std::vector<particle_t> ghost_from_bottom_left;
-std::vector<particle_t> ghost_from_bottom_right;
 
 // Apply force between two particles
 void apply_force(particle_t& particle, particle_t& neighbor) {
@@ -121,46 +105,74 @@ void init_simulation(particle_t* parts, int num_parts, double size, int rank, in
 
 void simulate_one_step(particle_t* parts, int num_parts, double size, int rank, int num_procs) {
     // Initialization 
-    ghost_to_left.clear();
-    ghost_to_right.clear();
-    ghost_to_above.clear();
-    ghost_to_below.clear();
-    ghost_to_top_left.clear();
-    ghost_to_top_right.clear();
-    ghost_to_bottom_left.clear();
-    ghost_to_bottom_right.clear();
-
-    ghost_from_left.clear();
-    ghost_from_right.clear();
-    ghost_from_above.clear();
-    ghost_from_below.clear();
-    ghost_from_top_left.clear();
-    ghost_from_top_right.clear();
-    ghost_from_bottom_left.clear();
-    ghost_from_bottom_right.clear();
+    std::vector<particle_t> ghost_to_left;
+    std::vector<particle_t> ghost_to_right;
+    std::vector<particle_t> ghost_to_above;
+    std::vector<particle_t> ghost_to_below;
+    std::vector<particle_t> ghost_to_top_left;
+    std::vector<particle_t> ghost_to_top_right;
+    std::vector<particle_t> ghost_to_bottom_left;
+    std::vector<particle_t> ghost_to_bottom_right;
+    
+    std::vector<particle_t> ghost_from_left;
+    std::vector<particle_t> ghost_from_right;
+    std::vector<particle_t> ghost_from_above;
+    std::vector<particle_t> ghost_from_below;
+    std::vector<particle_t> ghost_from_top_left;
+    std::vector<particle_t> ghost_from_top_right;
+    std::vector<particle_t> ghost_from_bottom_left;
+    std::vector<particle_t> ghost_from_bottom_right;
 
     // ============================== MOVE PARTICLES ================================= //
 
     // Define rank horizontal and vertical
+    // maximum rank
+    int max_rank = grid_size * grid_size - 1; // 최대 랭크는 0부터 시작하므로 -1 필요
+
+    // Horizontal and vertical neighbors
     int rank_left = (rank_x > 0) ? rank - 1 : MPI_PROC_NULL;
     int rank_right = (rank_x < grid_size - 1) ? rank + 1 : MPI_PROC_NULL;
-    int rank_above = (rank_y > 0) ? rank - grid_size : MPI_PROC_NULL;
-    int rank_below = (rank_y < grid_size - 1) ? rank + grid_size : MPI_PROC_NULL;
     
-    int rank_top_left = (rank_x > 0 && rank_y > 0) ? rank - grid_size - 1 : MPI_PROC_NULL;
-    int rank_top_right = (rank_x < grid_size - 1 && rank_y > 0) ? rank - grid_size + 1 : MPI_PROC_NULL;
-    int rank_bottom_left = (rank_x > 0 && rank_y < grid_size - 1) ? rank + grid_size - 1 : MPI_PROC_NULL;
-    int rank_bottom_right = (rank_x < grid_size - 1 && rank_y < grid_size - 1) ? rank + grid_size + 1 : MPI_PROC_NULL;
-
+    int rank_above = (rank_y > 0 && rank - grid_size >= 0) 
+                     ? rank - grid_size : MPI_PROC_NULL;
     
-
-    std::cout << "Rank " << rank << " neighbors: "
+    int rank_below = (rank_y < grid_size - 1 && rank + grid_size <= max_rank) 
+                     ? rank + grid_size : MPI_PROC_NULL;
+    
+    // Diagonal neighbors with strict boundary checking
+    int rank_top_left = (rank_x > 0 && rank_y > 0 && rank - grid_size - 1 >= 0) 
+                        ? rank - grid_size - 1 : MPI_PROC_NULL;
+    
+    int rank_top_right = (rank_x < grid_size - 1 && rank_y > 0 && rank - grid_size + 1 >= 0) 
+                         ? rank - grid_size + 1 : MPI_PROC_NULL;
+    
+    int rank_bottom_left = (rank_x > 0 && rank_y < grid_size - 1 && rank + grid_size - 1 <= max_rank) 
+                           ? rank + grid_size - 1 : MPI_PROC_NULL;
+    
+    int rank_bottom_right = (rank_x < grid_size - 1 && rank_y < grid_size - 1 && rank + grid_size + 1 <= max_rank) 
+                            ? rank + grid_size + 1 : MPI_PROC_NULL;
+    
+    // Additional safety check for out-of-bound ranks
+    if (rank_left < 0 || rank_left > max_rank) rank_left = MPI_PROC_NULL;
+    if (rank_right < 0 || rank_right > max_rank) rank_right = MPI_PROC_NULL;
+    if (rank_above < 0 || rank_above > max_rank) rank_above = MPI_PROC_NULL;
+    if (rank_below < 0 || rank_below > max_rank) rank_below = MPI_PROC_NULL;
+    
+    if (rank_top_left < 0 || rank_top_left > max_rank) rank_top_left = MPI_PROC_NULL;
+    if (rank_top_right < 0 || rank_top_right > max_rank) rank_top_right = MPI_PROC_NULL;
+    if (rank_bottom_left < 0 || rank_bottom_left > max_rank) rank_bottom_left = MPI_PROC_NULL;
+    if (rank_bottom_right < 0 || rank_bottom_right > max_rank) rank_bottom_right = MPI_PROC_NULL;
+    
+    /* std::cout << "Rank " << rank << " neighbors: "
           << "left=" << rank_left << ", "
           << "right=" << rank_right << ", "
           << "above=" << rank_above << ", "
-          << "below=" << rank_below << std::endl;
+          << "below=" << rank_below << ", "
+          << "top_left=" << rank_top_left << ", "
+        << "top_right=" << rank_top_right << ", "
+        << "bottom_left=" << rank_bottom_left << ", "
+        << "bottom_right=" << rank_bottom_right << std::endl; */
     
-
     // Iterate over local particles to determine ghost particle counts
     for (size_t i = 0; i < local_parts.size(); i++) {
         particle_t& p = local_parts[i];
@@ -223,70 +235,101 @@ void simulate_one_step(particle_t* parts, int num_parts, double size, int rank, 
 
     // ============================== SEND / RECEIVE GHOST PARTICLE COUNTS ================================= //
     // Define particle_requests array and initialize it
-    MPI_Request requests[32]; // 이름을 통일
-    for (int i = 0; i < 32; i++) {
-        requests[i] = MPI_REQUEST_NULL; // 올바르게 초기화
-    }
-    
-    int req_index = 0;
+    MPI_Request recv_requests[16];
+    MPI_Request send_requests[16];
 
+    // Receive Requests 초기화
+    for (int i = 0; i < 16; i++) {
+        recv_requests[i] = MPI_REQUEST_NULL;
+        send_requests[i] = MPI_REQUEST_NULL;
+    }
     // Non-blocking send and receive for ghost counts
     // Horizontal
-    // 수신 요청 (Irecv 먼저 설정)
-    if (rank_left >= 0) {
-        MPI_Irecv(&ghost_from_left_count, 1, MPI_INT, rank_left, 0, MPI_COMM_WORLD, &requests[req_index++]);
+    // Irecv should be called before Isend
+    // std::cout << "Rank " << rank << " before all Irecv calls of particle counts" << std::endl;
+
+    // Receive
+
+    if (rank_left != MPI_PROC_NULL) {
+        MPI_Irecv(&ghost_from_left_count, 1, MPI_INT,
+                  rank_left, 0, MPI_COMM_WORLD, &recv_requests[0]);
     }
-    if (rank_right >= 0) {
-        MPI_Irecv(&ghost_from_right_count, 1, MPI_INT, rank_right, 1, MPI_COMM_WORLD, &requests[req_index++]);
+    if (rank_right != MPI_PROC_NULL) {
+        MPI_Irecv(&ghost_from_right_count, 1, MPI_INT,
+                  rank_right, 1, MPI_COMM_WORLD, &recv_requests[1]);
+    } 
+
+    if (rank_above != MPI_PROC_NULL) {
+        MPI_Irecv(&ghost_from_above_count, 1, MPI_INT,
+                  rank_above, 2, MPI_COMM_WORLD, &recv_requests[2]);
     }
-    if (rank_above >= 0) {
-        MPI_Irecv(&ghost_from_above_count, 1, MPI_INT, rank_above, 2, MPI_COMM_WORLD, &requests[req_index++]);
+    
+    if (rank_below != MPI_PROC_NULL) {
+        MPI_Irecv(&ghost_from_below_count, 1, MPI_INT,
+                  rank_below, 3, MPI_COMM_WORLD, &recv_requests[3]);
+    } 
+    if (rank_top_left != MPI_PROC_NULL) {
+        MPI_Irecv(&ghost_from_top_left_count, 1, MPI_INT,
+                  rank_top_left, 4, MPI_COMM_WORLD, &recv_requests[4]);
     }
-    if (rank_below >= 0) {
-        MPI_Irecv(&ghost_from_below_count, 1, MPI_INT, rank_below, 3, MPI_COMM_WORLD, &requests[req_index++]);
-    }
-    if (rank_top_left >= 0) {
-        MPI_Irecv(&ghost_from_top_left_count, 1, MPI_INT, rank_top_left, 4, MPI_COMM_WORLD, &requests[req_index++]);
-    }
-    if (rank_top_right >= 0) {
-        MPI_Irecv(&ghost_from_top_right_count, 1, MPI_INT, rank_top_right, 5, MPI_COMM_WORLD, &requests[req_index++]);
-    }
-    if (rank_bottom_left >= 0) {
-        MPI_Irecv(&ghost_from_bottom_left_count, 1, MPI_INT, rank_bottom_left, 6, MPI_COMM_WORLD, &requests[req_index++]);
-    }
-    if (rank_bottom_right >= 0) {
-        MPI_Irecv(&ghost_from_bottom_right_count, 1, MPI_INT, rank_bottom_right, 7, MPI_COMM_WORLD, &requests[req_index++]);
+    if (rank_top_right != MPI_PROC_NULL) {
+        MPI_Irecv(&ghost_from_top_right_count, 1, MPI_INT,
+                  rank_top_right, 5, MPI_COMM_WORLD, &recv_requests[5]);
+    } 
+    if (rank_bottom_left != MPI_PROC_NULL) {
+        MPI_Irecv(&ghost_from_bottom_left_count, 1, MPI_INT,
+                  rank_bottom_left, 6, MPI_COMM_WORLD, &recv_requests[6]);
+    } 
+    if (rank_bottom_right!= MPI_PROC_NULL) {
+        MPI_Irecv(&ghost_from_bottom_right_count, 1, MPI_INT,
+                  rank_bottom_right, 7, MPI_COMM_WORLD, &recv_requests[7]);
+    } 
+    
+    MPI_Barrier(MPI_COMM_WORLD);
+    std::cout << "Rank " << rank << " after receiving particle counts" << std::endl;
+
+    if (rank_left != MPI_PROC_NULL) {
+        MPI_Isend(&ghost_to_left_count, 1, MPI_INT,
+                rank_left, 0, MPI_COMM_WORLD, &send_requests[0]);
+    } 
+    if (rank_right != MPI_PROC_NULL) {
+        MPI_Isend(&ghost_to_right_count, 1, MPI_INT,
+                rank_right, 1, MPI_COMM_WORLD, &send_requests[1]);
     }
 
-    // 송신 요청 (Isend)
-    if (rank_left >= 0) {
-        MPI_Isend(&ghost_to_left_count, 1, MPI_INT, rank_left, 0, MPI_COMM_WORLD, &requests[req_index++]);
-    }
-    if (rank_right >= 0) {
-        MPI_Isend(&ghost_to_right_count, 1, MPI_INT, rank_right, 1, MPI_COMM_WORLD, &requests[req_index++]);
-    }
-    if (rank_above >= 0) {
-        MPI_Isend(&ghost_to_above_count, 1, MPI_INT, rank_above, 2, MPI_COMM_WORLD, &requests[req_index++]);
-    }
-    if (rank_below >= 0) {
-        MPI_Isend(&ghost_to_below_count, 1, MPI_INT, rank_below, 3, MPI_COMM_WORLD, &requests[req_index++]);
-    }
-    if (rank_top_left >= 0) {
-        MPI_Isend(&ghost_to_top_left_count, 1, MPI_INT, rank_top_left, 4, MPI_COMM_WORLD, &requests[req_index++]);
-    }
-    if (rank_top_right >= 0) {
-        MPI_Isend(&ghost_to_top_right_count, 1, MPI_INT, rank_top_right, 5, MPI_COMM_WORLD, &requests[req_index++]);
-    }
-    if (rank_bottom_left >= 0) {
-        MPI_Isend(&ghost_to_bottom_left_count, 1, MPI_INT, rank_bottom_left, 6, MPI_COMM_WORLD, &requests[req_index++]);
-    }
-    if (rank_bottom_right >= 0) {
-        MPI_Isend(&ghost_to_bottom_right_count, 1, MPI_INT, rank_bottom_right, 7, MPI_COMM_WORLD, &requests[req_index++]);
-    }
+    if (rank_above != MPI_PROC_NULL) {
+        MPI_Isend(&ghost_to_above_count, 1, MPI_INT,
+            rank_above, 2, MPI_COMM_WORLD, &send_requests[2]);
+    } 
 
-    // Wait for all sends/receives to complete
-    MPI_Waitall(req_index, requests, MPI_STATUSES_IGNORE);
+    if (rank_below != MPI_PROC_NULL) {
+        MPI_Isend(&ghost_to_below_count, 1, MPI_INT,
+            rank_below, 3, MPI_COMM_WORLD, &send_requests[3]);
+    } 
+    if (rank_top_left != MPI_PROC_NULL) {
+        MPI_Isend(&ghost_to_top_left_count, 1, MPI_INT,
+            rank_top_left, 4, MPI_COMM_WORLD, &send_requests[4]);
+    } 
+    if (rank_top_right != MPI_PROC_NULL) {
+        MPI_Isend(&ghost_to_top_right_count, 1, MPI_INT,
+            rank_top_right, 5, MPI_COMM_WORLD, &send_requests[5]);
+    } 
+    if (rank_bottom_left != MPI_PROC_NULL) {
+        MPI_Isend(&ghost_to_bottom_left_count, 1, MPI_INT,
+            rank_bottom_left, 6, MPI_COMM_WORLD, &send_requests[6]);
+    } 
+    if (rank_bottom_right != MPI_PROC_NULL) {
+        MPI_Isend(&ghost_to_bottom_right_count, 1, MPI_INT,
+            rank_bottom_right, 7, MPI_COMM_WORLD, &send_requests[7]);
+    } 
 
+    MPI_Barrier(MPI_COMM_WORLD);
+    std::cout << "Rank " << rank << " after sending particle counts" << std::endl;
+
+    // MPI_Waitall(8, recv_requests, MPI_STATUSES_IGNORE);
+    // MPI_Waitall(8, send_requests, MPI_STATUSES_IGNORE);
+
+    std:: cout << " count done " << std:: endl;
     // Resize vectors based on received counts
     ghost_from_left.resize(ghost_from_left_count);
     ghost_from_right.resize(ghost_from_right_count);
@@ -299,63 +342,119 @@ void simulate_one_step(particle_t* parts, int num_parts, double size, int rank, 
 
 
     // ============================== SEND / RECEIVE GHOST PARTICLE DATA ================================= //
+    // To maintain the symetry of send and receive, we need to call and MPI_Irecv even though
+    // ghost_to_*_count is zero. 
+
+
+    // 수신 요청 배열 초기화
+    for (int i = 0; i < 16; i++) {
+        recv_requests[i] = MPI_REQUEST_NULL;
+        send_requests[i] = MPI_REQUEST_NULL;
+    }
+
     // Horizontal (Left / Right)
-    if (ghost_from_left_count > 0 && rank_left >= 0) {
-        MPI_Irecv(ghost_from_left.data(), ghost_from_left_count, PARTICLE, rank_left, 0, MPI_COMM_WORLD, &requests[req_index++]);
-    }
-    if (ghost_from_right_count > 0 && rank_right >= 0) {
-        MPI_Irecv(ghost_from_right.data(), ghost_from_right_count, PARTICLE, rank_right, 1, MPI_COMM_WORLD, &requests[req_index++]);
-    }
-    if (ghost_from_above_count > 0 && rank_above >= 0) {
-        MPI_Irecv(ghost_from_above.data(), ghost_from_above_count, PARTICLE, rank_above, 2, MPI_COMM_WORLD, &requests[req_index++]);
-    }
-    if (ghost_from_below_count > 0 && rank_below >= 0) {
-        MPI_Irecv(ghost_from_below.data(), ghost_from_below_count, PARTICLE, rank_below, 3, MPI_COMM_WORLD, &requests[req_index++]);
-    }
-    if (ghost_from_top_left_count > 0 && rank_top_left >= 0) {
-        MPI_Irecv(ghost_from_top_left.data(), ghost_from_top_left_count, PARTICLE, rank_top_left, 4, MPI_COMM_WORLD, &requests[req_index++]);
-    }
-    if (ghost_from_top_right_count > 0 && rank_top_right >= 0) {
-        MPI_Irecv(ghost_from_top_right.data(), ghost_from_top_right_count, PARTICLE, rank_top_right, 5, MPI_COMM_WORLD, &requests[req_index++]);
-    }
-    if (ghost_from_bottom_left_count > 0 && rank_bottom_left >= 0) {
-        MPI_Irecv(ghost_from_bottom_left.data(), ghost_from_bottom_left_count, PARTICLE, rank_bottom_left, 6, MPI_COMM_WORLD, &requests[req_index++]);
-    }
-    if (ghost_from_bottom_right_count > 0 && rank_bottom_right >= 0) {
-        MPI_Irecv(ghost_from_bottom_right.data(), ghost_from_bottom_right_count, PARTICLE, rank_bottom_right, 7, MPI_COMM_WORLD, &requests[req_index++]);
-    }
-    // 송신 요청 (Isend)
-    if (ghost_to_left_count > 0 && rank_left >= 0) {
-        MPI_Isend(ghost_to_left.data(), ghost_to_left_count, PARTICLE, rank_left, 0, MPI_COMM_WORLD, &requests[req_index++]);
-    }
-    if (ghost_to_right_count > 0 && rank_right >= 0) {
-        MPI_Isend(ghost_to_right.data(), ghost_to_right_count, PARTICLE, rank_right, 1, MPI_COMM_WORLD, &requests[req_index++]);
-    }
-    if (ghost_to_above_count > 0 && rank_above >= 0) {
-        MPI_Isend(ghost_to_above.data(), ghost_to_above_count, PARTICLE, rank_above, 2, MPI_COMM_WORLD, &requests[req_index++]);
-    }
-    if (ghost_to_below_count > 0 && rank_below >= 0) {
-        MPI_Isend(ghost_to_below.data(), ghost_to_below_count, PARTICLE, rank_below, 3, MPI_COMM_WORLD, &requests[req_index++]);
-    }
-    if (ghost_to_top_left_count > 0 && rank_top_left >= 0) {
-        MPI_Isend(ghost_to_top_left.data(), ghost_to_top_left_count, PARTICLE, rank_top_left, 4, MPI_COMM_WORLD, &requests[req_index++]);
-    }
-    if (ghost_to_top_right_count > 0 && rank_top_right >= 0) {
-        MPI_Isend(ghost_to_top_right.data(), ghost_to_top_right_count, PARTICLE, rank_top_right, 5, MPI_COMM_WORLD, &requests[req_index++]);
-    }
-    if (ghost_to_bottom_left_count > 0 && rank_bottom_left >= 0) {
-        MPI_Isend(ghost_to_bottom_left.data(), ghost_to_bottom_left_count, PARTICLE, rank_bottom_left, 6, MPI_COMM_WORLD, &requests[req_index++]);
-    }
-    if (ghost_to_bottom_right_count > 0 && rank_bottom_right >= 0) {
-        MPI_Isend(ghost_to_bottom_right.data(), ghost_to_bottom_right_count, PARTICLE, rank_bottom_right, 7, MPI_COMM_WORLD, &requests[req_index++]);
+    if (rank_left != MPI_PROC_NULL) {
+        MPI_Irecv(ghost_from_left.data(), ghost_from_left_count, PARTICLE,
+                  rank_left, 8, MPI_COMM_WORLD, &recv_requests[0]);      
+    } 
+    if (rank_right != MPI_PROC_NULL) {
+        MPI_Irecv(ghost_from_right.data(), ghost_from_right_count, PARTICLE,
+                  rank_right, 9, MPI_COMM_WORLD, &recv_requests[1]);
+                  // std::cout << "right_tag " << create_tag(rank_right, rank, RIGHT) << " recv from right" << std::endl;
+    } 
+    if (rank_above != MPI_PROC_NULL) {
+        MPI_Irecv(ghost_from_above.data(), ghost_from_above_count, PARTICLE,
+                  rank_above, 10, MPI_COMM_WORLD, &recv_requests[2]);
+                  // std :: cout << "above_tag " << create_tag(rank_above, rank, ABOVE) << " recv from above" << std::endl;
+    } 
+    
+    if (rank_below != MPI_PROC_NULL) {
+        MPI_Irecv(ghost_from_below.data(), ghost_from_below_count, PARTICLE,
+                  rank_below, 11, MPI_COMM_WORLD, &recv_requests[3]);
     }
     
+    if (rank_top_left != MPI_PROC_NULL) {
+        MPI_Irecv(ghost_from_top_left.data(), ghost_from_top_left_count, PARTICLE,
+                  rank_top_left, 12, MPI_COMM_WORLD, &recv_requests[4]);
+    } 
     
+    if (rank_top_right != MPI_PROC_NULL) {
+        MPI_Irecv(ghost_from_top_right.data(), ghost_from_top_right_count, PARTICLE,
+                  rank_top_right, 13, MPI_COMM_WORLD, &recv_requests[5]);
+    } 
+    
+    if (rank_bottom_left != MPI_PROC_NULL) {
+        MPI_Irecv(ghost_from_bottom_left.data(), ghost_from_bottom_left_count, PARTICLE,
+                  rank_bottom_left, 14, MPI_COMM_WORLD, &recv_requests[6]);
+    }
+    
+    if (rank_bottom_right != MPI_PROC_NULL) {
+        MPI_Irecv(ghost_from_bottom_right.data(), ghost_from_bottom_right_count, PARTICLE,
+                  rank_bottom_right, 15, MPI_COMM_WORLD, &recv_requests[7]);
+    } 
+    
+    MPI_Barrier(MPI_COMM_WORLD);
+    std::cout << "Rank " << rank << " after receiving particle data" << std::endl;
+
+
+    // std::cout << "Rank " << rank << " After all Irecv calls of particle data" << std::endl;
+    
+    // std::cout << "Rank " << rank << " before all Isend calls of particle data" << std::endl;
+
+    // MPI_Isend
+    if (rank_left != MPI_PROC_NULL) {
+        MPI_Isend(ghost_to_left.data(), ghost_to_left_count, PARTICLE,
+                  rank_left, 8, MPI_COMM_WORLD, &send_requests[0]);
+                  // std::cout << "left_tag " << create_tag(rank, rank_left, LEFT) << " send to left" << std::endl;
+    }
+    
+    if (rank_right != MPI_PROC_NULL) {
+        MPI_Isend(ghost_to_right.data(), ghost_to_right_count, PARTICLE,
+                  rank_right, 9, MPI_COMM_WORLD, &send_requests[1]);
+                  // std::cout << "right_tag " << create_tag(rank, rank_right, RIGHT) << " send to right" << std::endl;
+    } 
+    
+    if (rank_above != MPI_PROC_NULL) {
+        MPI_Isend(ghost_to_above.data(), ghost_to_above_count, PARTICLE,
+                  rank_above, 10, MPI_COMM_WORLD, &send_requests[2]);
+                  // std::cout << "above_tag " << create_tag(rank, rank_above, ABOVE) << " send to above" << std::endl;
+    } 
+    
+    if (rank_below != MPI_PROC_NULL) {
+        MPI_Isend(ghost_to_below.data(), ghost_to_below_count, PARTICLE,
+                  rank_below, 11, MPI_COMM_WORLD, &send_requests[3]);
+    } 
+    
+    if (rank_top_left != MPI_PROC_NULL) {
+        MPI_Isend(ghost_to_top_left.data(), ghost_to_top_left_count, PARTICLE,
+                  rank_top_left, 12, MPI_COMM_WORLD, &send_requests[4]);
+    }
+    
+    if (rank_top_right != MPI_PROC_NULL) {
+        MPI_Isend(ghost_to_top_right.data(), ghost_to_top_right_count, PARTICLE,
+                  rank_top_right, 13, MPI_COMM_WORLD, &send_requests[5]);
+    } 
+    
+    if (rank_bottom_left != MPI_PROC_NULL) {
+        MPI_Isend(ghost_to_bottom_left.data(), ghost_to_bottom_left_count, PARTICLE,
+                  rank_bottom_left, 14, MPI_COMM_WORLD, &send_requests[6]);
+    }
+    if (rank_bottom_right != MPI_PROC_NULL) {
+        MPI_Isend(ghost_to_bottom_right.data(), ghost_to_bottom_right_count, PARTICLE,
+                  rank_bottom_right, 15, MPI_COMM_WORLD, &send_requests[7]);
+    }
+    
+    // std::cout << "Rank " << rank << " After all Isend calls of particle data" << std::endl;
+
+    MPI_Barrier(MPI_COMM_WORLD);
+    std::cout << "Rank " << rank << " after sending particle datas" << std::endl;
+    // MPI_Waitall(8, recv_requests, MPI_STATUSES_IGNORE);
+    MPI_Waitall(8, recv_requests, MPI_STATUSES_IGNORE);
+    MPI_Waitall(8, send_requests, MPI_STATUSES_IGNORE);
 
     // Wait for all sends/receives to complete
-    MPI_Waitall(req_index, requests, MPI_STATUSES_IGNORE);
 
-        // ============================= Compute Forces ============================= //
+    // ============================= Compute Forces ============================= //
     for (int i = 0; i < local_parts.size(); ++i) {
         local_parts[i].ax = local_parts[i].ay = 0;
 
@@ -395,12 +494,22 @@ void simulate_one_step(particle_t* parts, int num_parts, double size, int rank, 
         for (size_t jj = 0; jj < ghost_from_bottom_right.size(); jj += 1) {
             apply_force(local_parts[i], ghost_from_bottom_right[jj]);
         }
+    }
 
     // ============================== MOVE PARTICLES ============================== //
     for (size_t i = 0; i < local_parts.size(); i++) {
         move(local_parts[i], size);
     }
 // ============================== PARTICLE EXCHANGE ACROSS RANKS ================================= //
+
+std::vector<particle_t> particles_to_left;
+std::vector<particle_t> particles_to_right;
+std::vector<particle_t> particles_to_above;
+std::vector<particle_t> particles_to_below;
+std::vector<particle_t> particles_to_top_left;
+std::vector<particle_t> particles_to_top_right;
+std::vector<particle_t> particles_to_bottom_left;
+std::vector<particle_t> particles_to_bottom_right;
 
 // Iterate over local particles to identify which need to be sent
 for (size_t i = 0; i < local_parts.size(); ) {
@@ -460,27 +569,117 @@ for (size_t i = 0; i < local_parts.size(); ) {
     ++i;
 }
 
+int num_particles_to[8] = {
+    static_cast<int>(particles_to_left.size()),
+    static_cast<int>(particles_to_right.size()),
+    static_cast<int>(particles_to_above.size()),
+    static_cast<int>(particles_to_below.size()),
+    static_cast<int>(particles_to_top_left.size()),
+    static_cast<int>(particles_to_top_right.size()),
+    static_cast<int>(particles_to_bottom_left.size()),
+    static_cast<int>(particles_to_bottom_right.size())
+};
+
+int num_particles_from[8] = {0, 0, 0, 0, 0, 0, 0, 0};
+
+enum Direction {LEFT, RIGHT, ABOVE, BELOW, TOP_LEFT, TOP_RIGHT, BOTTOM_LEFT, BOTTOM_RIGHT};
+
+// Initialize neighbor ranks array and fill it
+int neighbor_ranks[8] = {
+    rank_left, rank_right, rank_above, rank_below,
+    rank_top_left, rank_top_right, rank_bottom_left, rank_bottom_right
+};
+
+// MPI Requests 
+MPI_Request particle_requests[16];
+int request_count = 0;
+
+for (int dir = 0; dir < 8; dir++) {
+    if (neighbor_ranks[dir] != MPI_PROC_NULL) {
+        // 송신 (Send) - 각 방향으로 보낼 파티클 수
+        std::cout << "Rank " << rank << " sending " << num_particles_to[dir]
+        << " particles to direction " << dir
+        << " (neighbor rank " << neighbor_ranks[dir] << ")" << std::endl;
+        MPI_Isend(&num_particles_to[dir], 1, MPI_INT, 
+                  neighbor_ranks[dir], dir, MPI_COMM_WORLD, &particle_requests[request_count++]);
+
+    
+        // 수신 (Receive) - 각 방향에서 받을 파티클 수
+        std::cout << "Rank " << rank << " expecting to receive " << num_particles_from[dir]
+        << " particles from direction " << dir
+        << " (neighbor rank " << neighbor_ranks[dir] << ")" << std::endl;
+        MPI_Irecv(&num_particles_from[dir], 1, MPI_INT, 
+                  neighbor_ranks[dir], dir, MPI_COMM_WORLD, &particle_requests[request_count++]);
+        
+    }
+}
+MPI_Waitall(request_count, particle_requests, MPI_STATUSES_IGNORE);
+
+std::vector<particle_t> particles_from_left(num_particles_from[LEFT]);
+std::vector<particle_t> particles_from_right(num_particles_from[RIGHT]);
+std::vector<particle_t> particles_from_above(num_particles_from[ABOVE]);
+std::vector<particle_t> particles_from_below(num_particles_from[BELOW]);
+std::vector<particle_t> particles_from_top_left(num_particles_from[TOP_LEFT]);
+std::vector<particle_t> particles_from_top_right(num_particles_from[TOP_RIGHT]);
+std::vector<particle_t> particles_from_bottom_left(num_particles_from[BOTTOM_LEFT]);
+std::vector<particle_t> particles_from_bottom_right(num_particles_from[BOTTOM_RIGHT]);
+
+// Reset request count
+request_count = 0;
+
+// Send and receive actual particle data for all 8 directions
+std::vector<particle_t> particles_from[8] = {
+    particles_from_left,
+    particles_from_right,
+    particles_from_above,
+    particles_from_below,
+    particles_from_top_left,
+    particles_from_top_right,
+    particles_from_bottom_left,
+    particles_from_bottom_right
+};
+
+std::vector<particle_t> particles_to[8] = {
+    particles_to_left,
+    particles_to_right,
+    particles_to_above,
+    particles_to_below,
+    particles_to_top_left,
+    particles_to_top_right,
+    particles_to_bottom_left,
+    particles_to_bottom_right
+};
+
+for (int dir = 0; dir < 8; dir++) {
+    if (num_particles_to[dir] > 0 && neighbor_ranks[dir] != MPI_PROC_NULL) {
+        MPI_Isend(particles_to[dir].data(), num_particles_to[dir], PARTICLE, 
+                  neighbor_ranks[dir], dir + 8, MPI_COMM_WORLD, &particle_requests[request_count++]);
+    }
+    if (num_particles_from[dir] > 0 && neighbor_ranks[dir] != MPI_PROC_NULL) {
+        MPI_Irecv(particles_from[dir].data(), num_particles_from[dir], PARTICLE, 
+                  neighbor_ranks[dir], dir + 8, MPI_COMM_WORLD, &particle_requests[request_count++]);
+    }
+}
+
+// Wait for all non-blocking communication to complete
+MPI_Waitall(request_count, particle_requests, MPI_STATUSES_IGNORE);
+
+
 // ============================== INSERT RECEIVED PARTICLES ================================= //
 // Horizontal
-local_parts.insert(local_parts.end(), ghost_from_left.begin(), ghost_from_left.end());
-local_parts.insert(local_parts.end(), ghost_from_right.begin(), ghost_from_right.end());
-
+local_parts.insert(local_parts.end(), particles_from_left.begin(), particles_from_left.end());
+local_parts.insert(local_parts.end(), particles_from_right.begin(), particles_from_right.end());
 // Vertical
-local_parts.insert(local_parts.end(), ghost_from_above.begin(),ghost_from_above.end());
-local_parts.insert(local_parts.end(), ghost_from_below.begin(), ghost_from_below.end());
-
+local_parts.insert(local_parts.end(), particles_from_above.begin(), particles_from_above.end());
+local_parts.insert(local_parts.end(), particles_from_below.begin(), particles_from_below.end());
 // Diagonal
-local_parts.insert(local_parts.end(), ghost_from_top_left.begin(), ghost_from_top_left.end());
-local_parts.insert(local_parts.end(), ghost_from_top_right.begin(), ghost_from_top_right.end());
-local_parts.insert(local_parts.end(), ghost_from_bottom_left.begin(), ghost_from_bottom_left.end());
-local_parts.insert(local_parts.end(), ghost_from_bottom_right.begin(), ghost_from_bottom_right.end());
+local_parts.insert(local_parts.end(), particles_from_top_left.begin(), particles_from_top_left.end());
+local_parts.insert(local_parts.end(), particles_from_top_right.begin(), particles_from_top_right.end());
+local_parts.insert(local_parts.end(), particles_from_bottom_left.begin(), particles_from_bottom_left.end());
+local_parts.insert(local_parts.end(), particles_from_bottom_right.begin(), particles_from_bottom_right.end());
 
-
-MPI_Barrier(MPI_COMM_WORLD);
+    MPI_Barrier(MPI_COMM_WORLD);
 }
-
-}
-
 
 void gather_for_save(particle_t* parts, int num_parts, double size, int rank, int num_procs) {
     // Get the local number of particles on each rank
