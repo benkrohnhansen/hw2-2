@@ -153,6 +153,11 @@ int main(int argc, char** argv) {
     auto start_time = std::chrono::steady_clock::now();
 
     init_simulation(parts, num_parts, size, rank, num_procs);
+    auto end_init_time = std::chrono::steady_clock::now();
+
+    std::chrono::duration<double> init_diff = end_init_time - start_time;
+    double init_time = init_diff.count();
+
 
     double comm_time = 0.0, force_calc_time = 0.0, force_calc_binning = 0.0;
 
@@ -180,7 +185,8 @@ int main(int argc, char** argv) {
                      "\nComm time " << comm_time <<
                      "\nForce calc time " << force_calc_time <<
                      "\nBinning time " << force_calc_binning <<
-                     "\nTotal time " << seconds << std::endl;
+                     "\nTotal time " << seconds << 
+	             "\nInit time " << init_time << std::endl;
     }
     if (fsave) {
         fsave.close();
